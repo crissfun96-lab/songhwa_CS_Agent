@@ -7,9 +7,7 @@ const MODEL = "gemini-3.1-flash-live-preview";
 const SEND_SAMPLE_RATE = 16000;
 const RECEIVE_SAMPLE_RATE = 24000;
 const BUFFER_SIZE = 4096;
-const STORAGE_KEY = "songhwa_reservations";
-const CUSTOMERS_KEY = "songhwa_customers";
-const BUILD_VERSION = "v8-echo-fix";
+const BUILD_VERSION = "v9-firebase";
 
 const SONGHWA_SYSTEM_PROMPT = `You are the friendly AI phone assistant for Songhwa Korean Cuisine (松花韩食 / 송화한식), a premium Korean BBQ restaurant in Kuala Lumpur, Malaysia. "Songhwa" means pine blossom — inspired by Korea's national tree. Our motto: "Natural, True and Timeless Taste of Korea."
 
@@ -260,15 +258,6 @@ interface Reservation {
   createdAt: string;
 }
 
-interface CustomerProfile {
-  name: string;
-  phone: string;
-  visitCount: number;
-  lastVisit: string;
-  favoriteOrders: string[];
-  reservations: { date: string; time: string; pax: number; menuChoice: string; remarks: string }[];
-}
-
 // ─── Audio Helpers ──────────────────────────────────────────
 function floatTo16BitPCM(float32Array: Float32Array): ArrayBuffer {
   const buffer = new ArrayBuffer(float32Array.length * 2);
@@ -314,83 +303,14 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
   return bytes.buffer;
 }
 
-function loadReservations(): Reservation[] {
+// ─── API Helpers ──────────────────────────────────────────
+async function fetchReservations(): Promise<Reservation[]> {
   try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : [];
+    const res = await fetch("/api/reservations");
+    const data = await res.json();
+    return data.success ? data.data : [];
   } catch {
     return [];
-  }
-}
-
-function saveReservations(reservations: Reservation[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(reservations));
-}
-
-function loadCustomers(): CustomerProfile[] {
-  try {
-    const data = localStorage.getItem(CUSTOMERS_KEY);
-    return data ? JSON.parse(data) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveCustomers(customers: CustomerProfile[]) {
-  localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(customers));
-}
-
-function lookupCustomerByName(name: string): CustomerProfile | null {
-  const customers = loadCustomers();
-  const needle = name.toLowerCase().trim();
-  return (
-    customers.find((c) => c.name.toLowerCase().trim() === needle) ??
-    customers.find((c) => c.name.toLowerCase().includes(needle) || needle.includes(c.name.toLowerCase())) ??
-    null
-  );
-}
-
-function upsertCustomer(
-  name: string,
-  phone: string,
-  menuChoice: string,
-  remarks: string,
-  date: string,
-  time: string,
-  pax: number,
-) {
-  const customers = loadCustomers();
-  const needle = name.toLowerCase().trim();
-  const idx = customers.findIndex((c) => c.name.toLowerCase().trim() === needle);
-
-  const visit = { date, time, pax, menuChoice, remarks };
-
-  if (idx >= 0) {
-    // Returning customer — update immutably
-    const existing = customers[idx];
-    const updated: CustomerProfile = {
-      ...existing,
-      phone: phone || existing.phone,
-      visitCount: existing.visitCount + 1,
-      lastVisit: new Date().toISOString(),
-      favoriteOrders: menuChoice
-        ? [...new Set([...existing.favoriteOrders, menuChoice])]
-        : existing.favoriteOrders,
-      reservations: [...existing.reservations, visit],
-    };
-    const newCustomers = [...customers.slice(0, idx), updated, ...customers.slice(idx + 1)];
-    saveCustomers(newCustomers);
-  } else {
-    // New customer
-    const profile: CustomerProfile = {
-      name,
-      phone,
-      visitCount: 1,
-      lastVisit: new Date().toISOString(),
-      favoriteOrders: menuChoice ? [menuChoice] : [],
-      reservations: [visit],
-    };
-    saveCustomers([...customers, profile]);
   }
 }
 
@@ -415,9 +335,9 @@ export default function SonghwaAgentPage() {
   const isPlayingRef = useRef(false);
   const setupCompleteRef = useRef(false);
 
-  // Load reservations on mount
+  // Load reservations from Firestore on mount
   useEffect(() => {
-    setReservations(loadReservations());
+    fetchReservations().then(setReservations);
   }, []);
 
   const log = useCallback((msg: string) => {
@@ -428,123 +348,73 @@ export default function SonghwaAgentPage() {
     ]);
   }, []);
 
-  // ── Handle function calls from Gemini ──
+  // ── Handle function calls from Gemini (async — calls API routes) ──
   const handleFunctionCall = useCallback(
-    (name: string, args: Record<string, unknown>, callId: string) => {
+    async (name: string, args: Record<string, unknown>, callId: string) => {
       log(`Function call: ${name}(${JSON.stringify(args).slice(0, 100)})`);
+      const ws = wsRef.current;
+
+      const sendToolResponse = (id: string, result: string) => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            toolResponse: {
+              functionResponses: [{ id, response: { result } }],
+            },
+          }));
+        }
+      };
 
       if (name === "lookup_customer") {
         const customerName = String(args.name || "");
-        const found = lookupCustomerByName(customerName);
-        const ws = wsRef.current;
-
-        if (found) {
-          log(`Customer found: ${found.name} (${found.visitCount} visits)`);
-          const recentOrders = found.favoriteOrders.slice(-3).join(", ") || "none recorded";
-          const lastReservation = found.reservations[found.reservations.length - 1];
-          const lastVisitInfo = lastReservation
-            ? `Last visit: ${lastReservation.date}, ${lastReservation.pax} pax, ordered ${lastReservation.menuChoice || "not specified"}`
-            : "No previous reservation details";
-
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(
-              JSON.stringify({
-                toolResponse: {
-                  functionResponses: [
-                    {
-                      id: callId,
-                      response: {
-                        result: JSON.stringify({
-                          found: true,
-                          name: found.name,
-                          phone: found.phone,
-                          visitCount: found.visitCount,
-                          lastVisit: found.lastVisit,
-                          favoriteOrders: recentOrders,
-                          lastVisitInfo,
-                        }),
-                      },
-                    },
-                  ],
-                },
-              }),
-            );
+        try {
+          const res = await fetch(`/api/customers?name=${encodeURIComponent(customerName)}`);
+          const json = await res.json();
+          if (json.success) {
+            log(json.data.found
+              ? `Customer found: ${json.data.name} (${json.data.visitCount} visits)`
+              : `Customer not found: ${customerName}`);
+            sendToolResponse(callId, JSON.stringify(json.data));
+          } else {
+            sendToolResponse(callId, JSON.stringify({ found: false, message: "Lookup failed" }));
           }
-        } else {
-          log(`Customer not found: ${customerName}`);
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(
-              JSON.stringify({
-                toolResponse: {
-                  functionResponses: [
-                    {
-                      id: callId,
-                      response: {
-                        result: JSON.stringify({
-                          found: false,
-                          message: `No customer record found for "${customerName}". This is a new customer.`,
-                        }),
-                      },
-                    },
-                  ],
-                },
-              }),
-            );
-          }
+        } catch (err) {
+          log(`Customer lookup error: ${String(err).slice(0, 80)}`);
+          sendToolResponse(callId, JSON.stringify({ found: false, message: "Lookup failed" }));
         }
         return;
       }
 
       if (name === "create_reservation") {
-        const resName = String(args.name || "");
-        const resPhone = String(args.phone || "");
-        const resDate = String(args.date || "");
-        const resTime = String(args.time || "");
-        const resPax = Number(args.pax || 0);
-        const resMenu = String(args.menu_choice || "");
-        const resRemarks = String(args.remarks || "");
-
-        const reservation: Reservation = {
-          id: `res_${Date.now()}`,
-          name: resName,
-          phone: resPhone,
-          date: resDate,
-          time: resTime,
-          pax: resPax,
-          menuChoice: resMenu,
-          remarks: resRemarks,
-          createdAt: new Date().toISOString(),
+        const payload = {
+          name: String(args.name || ""),
+          phone: String(args.phone || ""),
+          date: String(args.date || ""),
+          time: String(args.time || ""),
+          pax: Number(args.pax || 0),
+          menuChoice: String(args.menu_choice || ""),
+          remarks: String(args.remarks || ""),
         };
 
-        // Save reservation to state + localStorage
-        setReservations((prev) => {
-          const updated = [reservation, ...prev];
-          saveReservations(updated);
-          return updated;
-        });
+        try {
+          const res = await fetch("/api/reservations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const json = await res.json();
 
-        // Upsert customer profile for memory
-        upsertCustomer(resName, resPhone, resMenu, resRemarks, resDate, resTime, resPax);
-
-        log(`Reservation saved: ${resName} - ${resDate} ${resTime} | Customer profile updated`);
-
-        // Send function response back to Gemini
-        const ws = wsRef.current;
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(
-            JSON.stringify({
-              toolResponse: {
-                functionResponses: [
-                  {
-                    id: callId,
-                    response: {
-                      result: `Reservation saved successfully for ${resName}, ${resPax} guests on ${resDate} at ${resTime}. Customer profile updated.`,
-                    },
-                  },
-                ],
-              },
-            }),
-          );
+          if (json.success) {
+            setReservations((prev) => [json.data, ...prev]);
+            log(`Reservation saved: ${payload.name} - ${payload.date} ${payload.time}`);
+            sendToolResponse(callId,
+              `Reservation saved successfully for ${payload.name}, ${payload.pax} guests on ${payload.date} at ${payload.time}. Customer profile updated. Staff has been notified.`);
+          } else {
+            log(`Reservation save failed: ${json.error}`);
+            sendToolResponse(callId, `Failed to save reservation: ${json.error}`);
+          }
+        } catch (err) {
+          log(`Reservation error: ${String(err).slice(0, 80)}`);
+          sendToolResponse(callId, "Failed to save reservation due to a server error.");
         }
         return;
       }
@@ -710,17 +580,11 @@ export default function SonghwaAgentPage() {
       const tokenRes = await fetch("/api/songhwa-token", { method: "POST" });
       const tokenData = await tokenRes.json();
 
-      let wsUrl: string;
-      if (tokenData.token) {
-        log("Got ephemeral token");
-        wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained?access_token=${tokenData.token}`;
-      } else if (tokenData.apiKey) {
-        const cleanKey = tokenData.apiKey.trim();
-        log("Using API key");
-        wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${cleanKey}`;
-      } else {
-        throw new Error("No credentials returned");
+      if (!tokenData.token) {
+        throw new Error(tokenData.error || "No token returned");
       }
+      log("Got ephemeral token");
+      const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained?access_token=${tokenData.token}`;
 
       log("Opening WebSocket...");
       const ws = new WebSocket(wsUrl);
@@ -888,11 +752,6 @@ export default function SonghwaAgentPage() {
     setStatusText("Tap the mic to start");
   }, []);
 
-  const clearReservations = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEY);
-    setReservations([]);
-  }, []);
-
   useEffect(() => {
     return () => {
       cancelAnimationFrame(animFrameRef.current);
@@ -983,18 +842,10 @@ export default function SonghwaAgentPage() {
 
       {/* ─── Reservations List ─── */}
       <div style={{ width: "100%", maxWidth: 420, marginTop: 32 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div style={{ marginBottom: 12 }}>
           <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>
             Reservations ({reservations.length})
           </h2>
-          {reservations.length > 0 && (
-            <button
-              onClick={clearReservations}
-              style={{ fontSize: 11, color: "#ef4444", background: "none", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}
-            >
-              Clear All
-            </button>
-          )}
         </div>
 
         {reservations.length === 0 ? (

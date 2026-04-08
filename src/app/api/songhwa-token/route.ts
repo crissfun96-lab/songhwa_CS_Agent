@@ -36,15 +36,19 @@ export async function POST() {
     if (!response.ok) {
       const errorText = await response.text();
       console.error("Ephemeral token error:", errorText);
-      // Fallback: return the API key directly (for preview/testing only)
-      return NextResponse.json({ apiKey });
+      return NextResponse.json(
+        { error: "Ephemeral token generation failed" },
+        { status: 502 },
+      );
     }
 
     const data = await response.json();
     return NextResponse.json({ token: data.name });
   } catch (error) {
     console.error("Token generation failed:", error);
-    // Fallback for testing
-    return NextResponse.json({ apiKey });
+    return NextResponse.json(
+      { error: "Token generation failed" },
+      { status: 500 },
+    );
   }
 }
