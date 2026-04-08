@@ -1,11 +1,11 @@
-import { db } from "./firebase-admin";
+import { getDb } from "./firebase-admin";
 import type { CustomerProfile } from "./types";
 
 const COLLECTION = "songhwa_customers";
 
 export async function lookupCustomerByName(name: string): Promise<CustomerProfile | null> {
   const needle = name.toLowerCase().trim();
-  const snapshot = await db.collection(COLLECTION).get();
+  const snapshot = await getDb().collection(COLLECTION).get();
 
   const customers = snapshot.docs.map((doc) => doc.data() as CustomerProfile);
 
@@ -32,7 +32,7 @@ export async function upsertCustomer(
   const nameLower = name.toLowerCase().trim();
   const visit = { date, time, pax, menuChoice, remarks };
 
-  const snapshot = await db
+  const snapshot = await getDb()
     .collection(COLLECTION)
     .where("nameLower", "==", nameLower)
     .limit(1)
@@ -63,6 +63,6 @@ export async function upsertCustomer(
       favoriteOrders: menuChoice ? [menuChoice] : [],
       reservations: [visit],
     };
-    await db.collection(COLLECTION).add(profile);
+    await getDb().collection(COLLECTION).add(profile);
   }
 }

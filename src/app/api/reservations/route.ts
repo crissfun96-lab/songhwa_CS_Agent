@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod/v4";
-import { db } from "@/lib/firebase-admin";
+import { getDb } from "@/lib/firebase-admin";
 import { upsertCustomer } from "@/lib/customers";
 import { sendStaffNotification } from "@/lib/telegram";
 import type { Reservation } from "@/lib/types";
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
       createdAt: new Date().toISOString(),
     };
 
-    await db.collection(COLLECTION).doc(reservation.id).set(reservation);
+    await getDb().collection(COLLECTION).doc(reservation.id).set(reservation);
 
     // Upsert customer profile (non-blocking for the response, but we await it)
     await upsertCustomer(
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
 
 export async function GET() {
   try {
-    const snapshot = await db
+    const snapshot = await getDb()
       .collection(COLLECTION)
       .orderBy("createdAt", "desc")
       .limit(50)
