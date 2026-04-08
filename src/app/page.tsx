@@ -580,11 +580,16 @@ export default function SonghwaAgentPage() {
       const tokenRes = await fetch("/api/songhwa-token", { method: "POST" });
       const tokenData = await tokenRes.json();
 
-      if (!tokenData.token) {
-        throw new Error(tokenData.error || "No token returned");
+      let wsUrl: string;
+      if (tokenData.token) {
+        log("Got ephemeral token");
+        wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained?access_token=${tokenData.token}`;
+      } else if (tokenData.apiKey) {
+        log("Using API key session");
+        wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${tokenData.apiKey}`;
+      } else {
+        throw new Error(tokenData.error || "No credentials returned");
       }
-      log("Got ephemeral token");
-      const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained?access_token=${tokenData.token}`;
 
       log("Opening WebSocket...");
       const ws = new WebSocket(wsUrl);
