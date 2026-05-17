@@ -107,26 +107,43 @@ export async function POST(request: Request) {
       const value = change.value;
 
       // Inbound messages → persist for later agent dispatch
+      let hasNewMessage = false;
       for (const msg of value.messages ?? []) {
         const contact = value.contacts?.find((c) => c.wa_id === msg.from);
         const docId = `wa_in_${msg.id}`;
-        await db
-          .collection(INBOUND_COLLECTION)
-          .doc(docId)
-          .set({
-            id: docId,
-            metaMessageId: msg.id,
-            from: msg.from,
-            customerName: contact?.profile.name ?? null,
-            type: msg.type,
-            text: msg.text?.body ?? null,
-            audioMediaId: msg.audio?.id ?? null,
-            receivedAt: new Date().toISOString(),
-            metaTimestamp: msg.timestamp,
-            phoneNumberId: value.metadata.phone_number_id,
-            processed: false,
-          })
-          .catch((err) => console.error("[WA webhook] persist failed:", err));
+        try {
+          await db
+            .collection(INBOUND_COLLECTION)
+            .doc(docId)
+            .set({
+              id: docId,
+              metaMessageId: msg.id,
+              from: msg.from,
+              customerName: contact?.profile.name ?? null,
+              type: msg.type,
+              text: msg.text?.body ?? null,
+              audioMediaId: msg.audio?.id ?? null,
+              receivedAt: new Date().toISOString(),
+              metaTimestamp: msg.timestamp,
+              phoneNumberId: value.metadata.phone_number_id,
+              processed: false,
+            });
+          hasNewMessage = true;
+        } catch (err) {
+          console.error("[WA webhook] persist failed:", err);
+        }
+      }
+
+      // Fire-and-forget dispatch trigger — faster reply latency than waiting
+      // for the 1-minute cron. The cron remains the safety net.
+      if (hasNewMessage && process.env.CRON_SECRET) {
+        const baseUrl =
+          process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+          "https://songhwa-cs-agent.vercel.app";
+        fetch(`${baseUrl}/api/cron/wa-dispatch`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+        }).catch((err) => console.error("[WA webhook] dispatch trigger failed:", err));
       }
 
       // Delivery status updates → log only for now
