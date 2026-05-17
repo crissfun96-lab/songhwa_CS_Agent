@@ -4,6 +4,7 @@ import {
   computeCurrentStatus,
   hoursToText,
 } from "@/lib/business/firestore";
+import { resolveTenantId } from "@/lib/tenants/resolver";
 import type { BusinessInfo } from "@/lib/business/types";
 
 // Tool endpoint for get_business_status — returns right-now open/closed info.
@@ -42,9 +43,9 @@ const HARDCODED_HOURS: BusinessInfo = {
   source: "google_places_api",
 };
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const info = (await getBusinessInfo()) ?? HARDCODED_HOURS;
+    const info = (await getBusinessInfo(resolveTenantId(request))) ?? HARDCODED_HOURS;
 
     const status = computeCurrentStatus(info);
     const todayName = new Intl.DateTimeFormat("en-US", {

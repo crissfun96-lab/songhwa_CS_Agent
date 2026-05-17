@@ -1,21 +1,25 @@
 import { getDb } from "./firebase-admin";
 import { normalizePhone } from "./reservations/lifecycle";
+import { tc } from "./tenants/collection";
+import { DEFAULT_TENANT_ID } from "./tenants/types";
 import type { CustomerProfile } from "./types";
-
-const COLLECTION = "songhwa_customers";
 
 // ── Phone-based lookup (PREFERRED — Chris's request 2026-05-17) ─────
 // Phone is unique per customer; name is not. Examples:
 //   "Chris" vs "Christopher" vs "Mr Fun" all collide on name
 //   But phone "+60 11-5430 2561" → "01154302561" is canonical
-export async function lookupCustomerByPhone(phone: string): Promise<CustomerProfile | null> {
+export async function lookupCustomerByPhone(
+  phone: string,
+  tenantId: string = DEFAULT_TENANT_ID,
+): Promise<CustomerProfile | null> {
   if (!phone) return null;
   const normalized = normalizePhone(phone);
   if (!normalized || normalized.length < 5) return null;
+  const collection = tc(tenantId, "customers");
 
   // 1. Indexed lookup on phoneNormalized (O(1) — preferred for new customers)
   const indexedSnap = await getDb()
-    .collection(COLLECTION)
+    .collection(collection)
     .where("phoneNormalized", "==", normalized)
     .limit(1)
     .get();
@@ -27,7 +31,7 @@ export async function lookupCustomerByPhone(phone: string): Promise<CustomerProf
   // (legacy records created before the field existed). Capped scan.
   const SCAN_LIMIT = 500;
   const scanSnap = await getDb()
-    .collection(COLLECTION)
+    .collection(collection)
     .limit(SCAN_LIMIT)
     .get();
   const match = scanSnap.docs
@@ -39,12 +43,16 @@ export async function lookupCustomerByPhone(phone: string): Promise<CustomerProf
 // ── Name-based lookup (DEPRECATED — kept for backwards compat) ──────
 // Use lookupCustomerByPhone instead. This is here only so old code paths
 // that still pass name keep working. Will be removed once admin UI migrates.
-export async function lookupCustomerByName(name: string): Promise<CustomerProfile | null> {
+export async function lookupCustomerByName(
+  name: string,
+  tenantId: string = DEFAULT_TENANT_ID,
+): Promise<CustomerProfile | null> {
   const needle = name.toLowerCase().trim();
   if (!needle) return null;
+  const collection = tc(tenantId, "customers");
 
   const exactSnap = await getDb()
-    .collection(COLLECTION)
+    .collection(collection)
     .where("nameLower", "==", needle)
     .limit(1)
     .get();
@@ -54,7 +62,7 @@ export async function lookupCustomerByName(name: string): Promise<CustomerProfil
 
   const PARTIAL_SCAN_LIMIT = 500;
   const fallbackSnap = await getDb()
-    .collection(COLLECTION)
+    .collection(collection)
     .limit(PARTIAL_SCAN_LIMIT)
     .get();
   const customers = fallbackSnap.docs.map((doc) => doc.data() as CustomerProfile);
@@ -74,16 +82,18 @@ export async function upsertCustomer(
   date: string,
   time: string,
   pax: number,
+  tenantId: string = DEFAULT_TENANT_ID,
 ): Promise<void> {
   const nameLower = name.toLowerCase().trim();
   const phoneNormalized = normalizePhone(phone);
   const visit = { date, time, pax, menuChoice, remarks };
+  const collection = tc(tenantId, "customers");
 
   // Try indexed phone lookup first
   let existingDoc = null;
   if (phoneNormalized) {
     const phoneSnap = await getDb()
-      .collection(COLLECTION)
+      .collection(collection)
       .where("phoneNormalized", "==", phoneNormalized)
       .limit(1)
       .get();
@@ -92,7 +102,7 @@ export async function upsertCustomer(
 
   // Backfill fallback: scan for customers without phoneNormalized but matching raw phone
   if (!existingDoc) {
-    const scanSnap = await getDb().collection(COLLECTION).limit(500).get();
+    const scanSnap = await getDb().collection(collection).limit(500).get();
     const match = scanSnap.docs.find((d) => {
       const data = d.data() as CustomerProfile;
       return normalizePhone(data.phone || "") === phoneNormalized;
@@ -127,6 +137,6 @@ export async function upsertCustomer(
       favoriteOrders: menuChoice ? [menuChoice] : [],
       reservations: [visit],
     };
-    await getDb().collection(COLLECTION).add(profile);
+    await getDb().collection(collection).add(profile);
   }
 }

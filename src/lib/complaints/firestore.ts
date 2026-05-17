@@ -1,8 +1,8 @@
 import { getDb } from "../firebase-admin";
 import { generateTicketId } from "../tickets";
+import { tc } from "../tenants/collection";
+import { DEFAULT_TENANT_ID } from "../tenants/types";
 import type { Complaint, ComplaintCategory, ComplaintSeverity } from "./types";
-
-const COLLECTION = "songhwa_complaints";
 
 export interface CreateComplaintInput {
   name: string;
@@ -11,11 +11,14 @@ export interface CreateComplaintInput {
   description: string;
   severity?: ComplaintSeverity;
   visitDate?: string;
+  tenantId?: string;
 }
 
 export async function createComplaint(
   input: CreateComplaintInput,
 ): Promise<Complaint> {
+  const tid = input.tenantId ?? DEFAULT_TENANT_ID;
+  const collection = tc(tid, "complaints");
   const now = new Date().toISOString();
   const complaint: Complaint = {
     id: `complaint_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -33,7 +36,7 @@ export async function createComplaint(
     updatedAt: now,
   };
 
-  await getDb().collection(COLLECTION).doc(complaint.id).set(complaint);
+  await getDb().collection(collection).doc(complaint.id).set(complaint);
   return complaint;
 }
 
@@ -51,9 +54,12 @@ function inferSeverity(description: string): ComplaintSeverity {
   return "low";
 }
 
-export async function getRecentComplaints(limit: number = 50): Promise<Complaint[]> {
+export async function getRecentComplaints(
+  limit: number = 50,
+  tenantId: string = DEFAULT_TENANT_ID,
+): Promise<Complaint[]> {
   const snapshot = await getDb()
-    .collection(COLLECTION)
+    .collection(tc(tenantId, "complaints"))
     .orderBy("createdAt", "desc")
     .limit(limit)
     .get();

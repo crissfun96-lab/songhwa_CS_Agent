@@ -1,15 +1,21 @@
 import { getDb } from "../firebase-admin";
+import { tc } from "../tenants/collection";
+import { DEFAULT_TENANT_ID } from "../tenants/types";
 import type { BusinessInfo, DailyHours } from "./types";
 
-const COLLECTION = "songhwa_business_info";
 const DOC_ID = "profile";
 
-export async function saveBusinessInfo(info: BusinessInfo): Promise<void> {
-  await getDb().collection(COLLECTION).doc(DOC_ID).set(info);
+export async function saveBusinessInfo(
+  info: BusinessInfo,
+  tenantId: string = DEFAULT_TENANT_ID,
+): Promise<void> {
+  await getDb().collection(tc(tenantId, "business_info")).doc(DOC_ID).set(info);
 }
 
-export async function getBusinessInfo(): Promise<BusinessInfo | null> {
-  const doc = await getDb().collection(COLLECTION).doc(DOC_ID).get();
+export async function getBusinessInfo(
+  tenantId: string = DEFAULT_TENANT_ID,
+): Promise<BusinessInfo | null> {
+  const doc = await getDb().collection(tc(tenantId, "business_info")).doc(DOC_ID).get();
   return doc.exists ? (doc.data() as BusinessInfo) : null;
 }
 

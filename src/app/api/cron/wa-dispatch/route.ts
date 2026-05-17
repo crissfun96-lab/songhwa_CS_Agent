@@ -6,12 +6,11 @@
 
 import { NextResponse } from "next/server";
 import { processInboundBatch } from "@/lib/whatsapp/dispatcher";
+import { verifyBearer } from "@/lib/auth-secret";
 
 export async function GET(request: Request) {
   // Generic 401 regardless of config state (no info leak)
-  const expected = process.env.CRON_SECRET?.trim();
-  const auth = request.headers.get("authorization");
-  if (!expected || auth !== `Bearer ${expected}`) {
+  if (!verifyBearer(request.headers.get("authorization"), process.env.CRON_SECRET?.trim())) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

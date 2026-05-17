@@ -65,16 +65,26 @@ function sanitizeKey(key: string): string {
 }
 
 // Convenience: extract IP from request (for IP-based limits).
-// SECURITY (Bug C1 fix): the `x-forwarded-for` first-hop is set by the client and
-// trivially spoofable. We trust:
-//   1. `x-vercel-forwarded-for` — Vercel platform-set, not user-controllable
-//   2. `cf-connecting-ip` — Cloudflare-set if proxied
-//   3. `x-real-ip` — common reverse-proxy convention
-//   4. Last hop of `x-forwarded-for` — the closest trusted proxy
+// SECURITY: all forwarded-for headers are comma-lists "client, proxy1, proxy2".
+// The first hop is client-supplied and spoofable. The LAST hop is the closest
+// trusted proxy (Vercel's edge, or our reverse proxy). We trust last hop in
+// header preference order:
+//   1. `x-vercel-forwarded-for` — last hop = Vercel edge's view of the client
+//   2. `cf-connecting-ip` — Cloudflare-set single value, not a list
+//   3. `x-real-ip` — common reverse-proxy convention, single value
+//   4. `x-forwarded-for` — generic, take last hop
 //   5. "unknown" fallback (still rate-limited as a single bucket)
+function lastHop(headerValue: string): string | null {
+  const hops = headerValue.split(",").map((s) => s.trim()).filter(Boolean);
+  return hops.length > 0 ? hops[hops.length - 1] : null;
+}
+
 export function getClientIp(req: Request): string {
   const vercel = req.headers.get("x-vercel-forwarded-for");
-  if (vercel) return vercel.split(",")[0].trim();
+  if (vercel) {
+    const ip = lastHop(vercel);
+    if (ip) return ip;
+  }
 
   const cf = req.headers.get("cf-connecting-ip");
   if (cf) return cf.trim();
@@ -84,9 +94,8 @@ export function getClientIp(req: Request): string {
 
   const xff = req.headers.get("x-forwarded-for");
   if (xff) {
-    // LAST hop is closest to us — the only one we can trust without proxy config.
-    const hops = xff.split(",").map((s) => s.trim()).filter(Boolean);
-    if (hops.length > 0) return hops[hops.length - 1];
+    const ip = lastHop(xff);
+    if (ip) return ip;
   }
 
   return "unknown";

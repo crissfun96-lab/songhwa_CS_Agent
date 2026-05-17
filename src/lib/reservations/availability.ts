@@ -3,11 +3,12 @@
 // Chris can tune caps later based on real table layout.
 
 import { getDb } from "../firebase-admin";
+import { tc } from "../tenants/collection";
+import { DEFAULT_TENANT_ID } from "../tenants/types";
 import type { Reservation } from "../types";
 
-const RESERVATION_COLLECTION = "songhwa_reservations";
-
-// Capacity rules — tune these per Chris's real floor plan
+// Capacity rules — tune these per Chris's real floor plan.
+// In a multi-tenant world these would live on the tenant doc.
 const CAPACITY = {
   lunchCap: 80,       // 11:30–15:00 — max concurrent pax
   dinnerCap: 100,     // 17:30–22:00
@@ -80,6 +81,7 @@ export async function checkAvailability(
   requestedTime: string, // anything-like
   pax: number,
   excludeReservationId?: string, // when re-checking for an update, exclude the current booking
+  tenantId: string = DEFAULT_TENANT_ID,
 ): Promise<AvailabilityCheck> {
   let hhmm: string;
   try {
@@ -120,7 +122,7 @@ export async function checkAvailability(
 
   // Fetch all reservations for this date
   const snapshot = await getDb()
-    .collection(RESERVATION_COLLECTION)
+    .collection(tc(tenantId, "reservations"))
     .where("date", "==", date)
     .get();
 
@@ -143,7 +145,7 @@ export async function checkAvailability(
 
   if (remaining < pax) {
     // Suggest nearby slots
-    const alternatives = await suggestAlternatives(date, hhmm, pax, isLunch);
+    const alternatives = await suggestAlternatives(date, hhmm, pax, isLunch, tenantId);
     return {
       available: false,
       reason: "fully_booked",
@@ -164,6 +166,7 @@ async function suggestAlternatives(
   hhmm: string,
   pax: number,
   isLunch: boolean,
+  tenantId: string,
 ): Promise<Array<{ date: string; time: string; note: string }>> {
   const candidates = isLunch
     ? ["11:30", "12:00", "12:30", "13:00", "13:30", "14:00"]
@@ -173,7 +176,7 @@ async function suggestAlternatives(
 
   for (const candidate of candidates) {
     if (candidate === timeToBucket(hhmm)) continue;
-    const check = await checkAvailability(date, candidate, pax);
+    const check = await checkAvailability(date, candidate, pax, undefined, tenantId);
     if (check.available) {
       suggestions.push({
         date,
@@ -240,9 +243,10 @@ export async function findRecentDuplicate(
   date: string,
   time: string,
   windowMinutes: number = 60,
+  tenantId: string = DEFAULT_TENANT_ID,
 ): Promise<Reservation | null> {
   const snapshot = await getDb()
-    .collection(RESERVATION_COLLECTION)
+    .collection(tc(tenantId, "reservations"))
     .where("phone", "==", phone)
     .where("date", "==", date)
     .get();

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod/v4";
 import { upsertDraft } from "@/lib/reservations/intent";
+import { resolveTenantId } from "@/lib/tenants/resolver";
 
 // Intent capture — agent calls this every time it has new info (name, date, etc)
 // If the customer hangs up mid-booking, staff still has the draft.
@@ -21,15 +22,19 @@ export async function POST(request: Request) {
     const body = await request.json();
     const parsed = DraftSchema.parse(body);
 
-    const draft = await upsertDraft(parsed.sessionId, {
-      name: parsed.name ?? null,
-      phone: parsed.phone ?? null,
-      date: parsed.date ?? null,
-      time: parsed.time ?? null,
-      pax: parsed.pax ?? null,
-      menuChoice: parsed.menuChoice ?? null,
-      remarks: parsed.remarks ?? null,
-    });
+    const draft = await upsertDraft(
+      parsed.sessionId,
+      {
+        name: parsed.name ?? null,
+        phone: parsed.phone ?? null,
+        date: parsed.date ?? null,
+        time: parsed.time ?? null,
+        pax: parsed.pax ?? null,
+        menuChoice: parsed.menuChoice ?? null,
+        remarks: parsed.remarks ?? null,
+      },
+      resolveTenantId(request),
+    );
 
     return NextResponse.json({
       success: true,

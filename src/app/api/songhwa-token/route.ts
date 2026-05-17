@@ -7,13 +7,13 @@ import { rateLimit, getClientIp } from "@/lib/rate-limit";
  *
  * Strategy:
  *   1. Try ephemeral token (preferred — short-lived, single-use).
- *   2. If Google's authTokens endpoint is 404/unavailable for this tier,
- *      return the API key BUT only if:
- *      - Request originates from our own domain (Origin/Referer check)
- *      - Caller hasn't hit the rate limit (prevents scraping by bots)
+ *   2. If Google's authTokens endpoint is 404/unavailable for this tier:
+ *      - If STRICT_TOKEN_MODE=true → return 503. Caller must use ws-proxy
+ *        (services/ws-proxy/). Set this once the proxy is deployed.
+ *      - Else → return the API key, gated by origin allowlist + 10/hr/IP
+ *        rate limit. Tightened from 60/hr to shrink scraping surface.
  *
- * Week 2 plan: Replace with server-side WebSocket proxy so the API key
- * NEVER leaves the server. Until then, this is the pragmatic compromise.
+ * Permanent fix: deploy services/ws-proxy/ to Fly.io and flip STRICT_TOKEN_MODE.
  */
 
 const ALLOWED_ORIGINS = new Set([
@@ -59,10 +59,16 @@ export async function POST(request: Request) {
     console.warn("[songhwa-token] Ephemeral network error; falling back:", err);
   }
 
-  // ── Attempt 2: API key fallback with origin + rate-limit guards ──
+  // ── Attempt 2: API key fallback (only if STRICT_TOKEN_MODE not set) ──
   // SECURITY (was Bug #2.5): the old `referer.startsWith(o)` check was bypassable
   // via `https://songhwa-cs-agent.vercel.app.evil.com/...`. We now parse the
   // referer as a URL and compare origins exactly.
+  if (process.env.STRICT_TOKEN_MODE === "true") {
+    return NextResponse.json(
+      { error: "Voice service temporarily unavailable. Please retry shortly." },
+      { status: 503 },
+    );
+  }
   const origin = request.headers.get("origin");
   const referer = request.headers.get("referer");
 
@@ -87,9 +93,11 @@ export async function POST(request: Request) {
     );
   }
 
-  // Rate limit: cap key issuance per IP to prevent scraping
+  // Rate limit: cap key issuance per IP to prevent scraping (was 60/hr).
+  // Tighter cap shrinks the window an attacker has to harvest the key while
+  // Google's ephemeral endpoint is degraded.
   const ip = getClientIp(request);
-  const limit = await rateLimit(`token-fallback:${ip}`, { limit: 60, windowSeconds: 3600 });
+  const limit = await rateLimit(`token-fallback:${ip}`, { limit: 10, windowSeconds: 3600 });
   if (!limit.allowed) {
     return NextResponse.json(
       { error: "Too many session token requests. Please wait." },

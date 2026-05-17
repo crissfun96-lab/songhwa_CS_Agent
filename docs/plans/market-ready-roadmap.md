@@ -11,12 +11,14 @@ This doc maps every component from the joint Apple+Claude audit to its current i
 | WhatsApp auto-reply | `src/lib/whatsapp/dispatcher.ts` + webhook + cron | Multi-turn, 14 tools, per-customer history |
 | Human handoff | `src/lib/handoff/*` + `/api/handoff` + `/admin/handoffs` | Channel-aware: phone bridge, WA human_mode, web callback |
 | Marketing landing | `/business` + `/api/leads` | Pricing, demo CTA, contact form, Telegram alerts |
-| **Tenant model** | `src/lib/tenants/*` | Type, resolver, collection helper, Firestore CRUD |
-| **Metering** | `src/lib/metering/*` + cron + admin view | Events + daily rollups + per-tenant usage view |
-| **Onboarding** | `/business/signup` + `/api/onboard` | Self-serve tenant creation with 30-day trial |
-| **Stripe billing** | `src/lib/billing/stripe.ts` + checkout + webhook | REST-based (no SDK dep), full subscription lifecycle |
-| **Pipecat scaffold** | `services/pipecat/` | Python + Fly.io ready (3 of 14 tools implemented as example) |
-| Security hardening | various | IP spoof fix, CSRF, signature verify, rate limits, PII refusal, prompt injection defense, PDPA |
+| **Tenant model** | `src/lib/tenants/*` | Type, resolver, collection helper, Firestore CRUD, atomic creates, internal-secret header |
+| **Multi-tenant data layer** | 9 lib modules + 13 routes | All data-access functions accept optional `tenantId` (default = "songhwa"). Routes resolve via subdomain/header. Vapi + WA dispatcher forward tenant context via `X-Foxie-Internal-Secret` |
+| **Tenant theming** | `src/lib/tenants/types.ts` (TenantTheme) + `prompt-injector.ts` | Per-tenant prompt overrides, full white-label via `tenant.promptOverrides.systemPromptTemplate`. WA queue lazy-fetches `notif.whatsappStaffGroup` |
+| **Metering** | `src/lib/metering/*` + cron + admin view | Events + daily rollups + per-tenant usage view + write-through counter for O(1) live quota |
+| **Onboarding** | `/business/signup` + `/api/onboard` | Self-serve tenant creation with 30-day trial (enterprise tier removed from public path) |
+| **Stripe billing** | `src/lib/billing/stripe.ts` + checkout + webhook | REST-based (no SDK dep), full subscription lifecycle, priceId whitelist, 500-on-error so Stripe retries |
+| **Pipecat orchestrator** | `services/pipecat/main.py` | Python + Fly.io ready, all 14 tools ported, LLM init-time failover (Gemini → OpenAI), forwards tenant context via `X-Foxie-Tenant` |
+| Security hardening | various | IP spoof fix, CSRF, signature verify, rate limits, PII refusal, prompt injection defense, PDPA, `firestore.rules` default-deny, composite indexes, constant-time secret compares |
 | Apple UX polish | `layout.tsx` + `page.tsx` | ARIA, prefers-reduced-motion, debug gating, manifest, hint card, success animation |
 
 ## ⏳ CHRIS DOES (external setup only — code is ready)
@@ -36,10 +38,11 @@ This doc maps every component from the joint Apple+Claude audit to its current i
 ## 🟡 OPTIONAL POLISH (when first paying tenant signs up)
 
 - Replace `*` cron schedule with Vercel Pro ($20/mo) — currently Hobby plan limits to daily
-- Implement remaining 11 tools in `services/pipecat/main.py` (mechanical, 1-2 hr)
-- Add Pipecat `FallbackAdapter` for true LLM failover
+- Add runtime LLM fallback (mid-call provider switch) — current impl is init-time only
 - Add Mesolitica STT integration for Bahasa-heavy tenants
-- Build white-label theming (currently hardcoded Songhwa branding on `/admin`)
+- Tenant-aware `/admin` UI (currently hardcoded Songhwa branding — header + favicon read from `tenant.theme`)
+- Migrate menu collections to `tc()` (currently in `src/lib/menu/firestore.ts` MENU_COLLECTIONS still hardcoded; needs `collection.ts` mapping extension)
+- Multi-tenant cron rollover (cron jobs default to Songhwa; iterate `foxie_tenants` for true multi-tenant ops)
 
 ## 🚀 30-day plan to first 3 paying tenants
 

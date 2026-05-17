@@ -1,13 +1,12 @@
 import { getDb } from "../firebase-admin";
+import { tc } from "../tenants/collection";
+import { DEFAULT_TENANT_ID } from "../tenants/types";
 import type {
   HandoffRequest,
   HandoffChannel,
   HandoffAction,
 } from "./types";
 import { HANDOFF_ETA_MINUTES } from "./types";
-
-const COLLECTION = "songhwa_handoffs";
-const WA_CONV_COLLECTION = "wa_conversations"; // tracks per-customer WA mode
 
 function generateTicketId(): string {
   const now = new Date();
@@ -26,9 +25,14 @@ export interface CreateHandoffInput {
   urgency?: "high" | "medium";
   sessionId?: string;
   vapiCallId?: string;
+  tenantId?: string;
 }
 
 export async function createHandoff(input: CreateHandoffInput): Promise<HandoffRequest> {
+  const tid = input.tenantId ?? DEFAULT_TENANT_ID;
+  const handoffsCollection = tc(tid, "handoffs");
+  const conversationsCollection = tc(tid, "conversations");
+
   const id = `handoff_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const ticketId = generateTicketId();
   const urgency = input.urgency ?? "high";
@@ -68,13 +72,13 @@ export async function createHandoff(input: CreateHandoffInput): Promise<HandoffR
     ...(input.channel === "wa" && { waConversationId: input.customerPhone }),
   };
 
-  await getDb().collection(COLLECTION).doc(id).set(request);
+  await getDb().collection(handoffsCollection).doc(id).set(request);
 
   // For WA: mark the customer's conversation as human-mode so the dispatcher
   // skips the AI for any further inbound messages from this number.
   if (action === "human_mode") {
     await getDb()
-      .collection(WA_CONV_COLLECTION)
+      .collection(conversationsCollection)
       .doc(input.customerPhone.replace(/\D/g, "") || "unknown")
       .set(
         {
@@ -94,8 +98,11 @@ export async function createHandoff(input: CreateHandoffInput): Promise<HandoffR
 export async function resolveHandoff(
   id: string,
   resolution: { resolvedBy: string; note?: string },
+  tenantId: string = DEFAULT_TENANT_ID,
 ): Promise<void> {
-  const ref = getDb().collection(COLLECTION).doc(id);
+  const handoffsCollection = tc(tenantId, "handoffs");
+  const conversationsCollection = tc(tenantId, "conversations");
+  const ref = getDb().collection(handoffsCollection).doc(id);
   const doc = await ref.get();
   if (!doc.exists) throw new Error("Handoff not found");
 
@@ -110,7 +117,7 @@ export async function resolveHandoff(
   // Release the WA conversation back to AI mode
   if (data.action === "human_mode" && data.waConversationId) {
     await getDb()
-      .collection(WA_CONV_COLLECTION)
+      .collection(conversationsCollection)
       .doc(data.waConversationId.replace(/\D/g, "") || "unknown")
       .set(
         {
@@ -123,13 +130,17 @@ export async function resolveHandoff(
   }
 }
 
-// Used by the WA dispatcher (when built) to decide whether to invoke the AI
-// or stay silent because a human is handling.
+// Used by the WA dispatcher to decide whether to invoke the AI or stay silent
+// because a human is handling.
 export async function getWaConversationMode(
   customerPhone: string,
+  tenantId: string = DEFAULT_TENANT_ID,
 ): Promise<"ai" | "human"> {
   const docId = customerPhone.replace(/\D/g, "") || "unknown";
-  const doc = await getDb().collection(WA_CONV_COLLECTION).doc(docId).get();
+  const doc = await getDb()
+    .collection(tc(tenantId, "conversations"))
+    .doc(docId)
+    .get();
   if (!doc.exists) return "ai";
   const data = doc.data();
   return data?.mode === "human" ? "human" : "ai";

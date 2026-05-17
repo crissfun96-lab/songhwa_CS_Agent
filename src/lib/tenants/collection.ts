@@ -49,22 +49,35 @@ const SONGHWA_NAMES: Record<CollectionName, string> = {
   conversations:        "wa_conversations",
 };
 
+// Defense-in-depth: validate tenantId format before constructing collection
+// names. This is normally enforced by `resolveTenantId()` upstream, but
+// `tc()` is also called by internal code paths that may not run through the
+// resolver. An invalid slug falls back to the default tenant (Songhwa).
+function isValidSlug(s: string): boolean {
+  return /^[a-z0-9][a-z0-9-]{0,39}$/.test(s);
+}
+
 /**
  * Resolve the Firestore collection name for a tenant.
  *
  * - Default tenant (Songhwa): returns the existing collection names verbatim.
- * - Other tenants: substitutes the `songhwa_` / `wa_` prefix with `<tenantId>_`.
+ * - Other tenants: substitutes the `songhwa_` prefix with `<tenantId>_`, and
+ *   `wa_*` collections become `<tenantId>_wa_*` (the `_wa_` infix is
+ *   INTENTIONAL — it preserves the namespace separation between business
+ *   data and WhatsApp ops state).
  *
- * Example:
- *   tc("songhwa", "reservations") → "songhwa_reservations"
- *   tc("acme", "reservations")    → "acme_reservations"
- *   tc("acme", "inbound_messages") → "acme_inbound_messages"
+ * Examples:
+ *   tc("songhwa", "reservations")     → "songhwa_reservations"      (legacy)
+ *   tc("acme", "reservations")        → "acme_reservations"         (new tenant)
+ *   tc("acme", "inbound_messages")    → "acme_wa_inbound_messages"  (WA ops)
+ *   tc("invalid!", "reservations")    → "songhwa_reservations"      (default fallback)
  */
 export function tc(tenantId: string, name: CollectionName): string {
   const tid = (tenantId || DEFAULT_TENANT_ID).toLowerCase();
   const base = SONGHWA_NAMES[name];
-  if (tid === DEFAULT_TENANT_ID) return base;
-  // Strip the songhwa_ / wa_ prefix and substitute the new tenant id
+  // Fall back to default tenant on any non-conforming slug. Never produce
+  // malformed collection names from caller-supplied input.
+  if (tid === DEFAULT_TENANT_ID || !isValidSlug(tid)) return base;
   return base.replace(/^songhwa_/, `${tid}_`).replace(/^wa_/, `${tid}_wa_`);
 }
 

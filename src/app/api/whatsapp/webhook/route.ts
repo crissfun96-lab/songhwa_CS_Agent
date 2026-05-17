@@ -11,9 +11,9 @@
 
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/firebase-admin";
+import { tc } from "@/lib/tenants/collection";
+import { resolveTenantId } from "@/lib/tenants/resolver";
 import crypto from "node:crypto";
-
-const INBOUND_COLLECTION = "wa_inbound_messages";
 
 // ── GET: webhook verification (Meta hits this once when you save the URL) ──
 // SECURITY: generic 403 regardless of config state (no information leak)
@@ -101,6 +101,8 @@ export async function POST(request: Request) {
   }
 
   const db = getDb();
+  const tenantId = resolveTenantId(request);
+  const inboundCollection = tc(tenantId, "inbound_messages");
 
   for (const entry of payload.entry ?? []) {
     for (const change of entry.changes ?? []) {
@@ -113,7 +115,7 @@ export async function POST(request: Request) {
         const docId = `wa_in_${msg.id}`;
         try {
           await db
-            .collection(INBOUND_COLLECTION)
+            .collection(inboundCollection)
             .doc(docId)
             .set({
               id: docId,

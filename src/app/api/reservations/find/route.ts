@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { findReservationsByPhone } from "@/lib/reservations/lifecycle";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { resolveTenantId } from "@/lib/tenants/resolver";
 
 // GET /api/reservations/find?phone=01154302561&date=2026-04-25&activeOnly=true
 // Rate-limited: 20 lookups/hour per IP. Each lookup is by an exact phone — attackers
@@ -46,6 +47,7 @@ export async function GET(request: Request) {
       phone,
       ...(date && { date }),
       activeOnly,
+      tenantId: resolveTenantId(request),
     });
 
     return NextResponse.json({

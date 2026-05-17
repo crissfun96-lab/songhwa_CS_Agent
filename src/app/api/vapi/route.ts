@@ -4,9 +4,12 @@
 // so all three channels share the same tool behavior.
 //
 // Vapi auth: requires X-Vapi-Secret header matching VAPI_SERVER_SECRET env var.
-// Set this in Vapi assistant config as the server's authentication.
+// Multi-tenant: each Vapi assistant runs against a single tenant. Set
+// VAPI_TENANT_ID per deployment (or pass through Vapi metadata in future).
 
 import { NextResponse } from "next/server";
+import { DEFAULT_TENANT_ID } from "@/lib/tenants/types";
+import { verifyBearer, constantTimeStringEqual } from "@/lib/auth-secret";
 
 const APP_BASE_URL =
   process.env.NEXT_PUBLIC_APP_URL?.trim() ||
@@ -26,21 +29,37 @@ interface VapiPayload {
     type: string;
     toolCalls?: VapiToolCall[];
     toolCallList?: VapiToolCall[];
-    call?: { id?: string; customer?: { number?: string } };
+    call?: {
+      id?: string;
+      customer?: { number?: string };
+      assistant?: { metadata?: { tenantId?: string } };
+    };
+    assistant?: { metadata?: { tenantId?: string } };
   };
+}
+
+// Build internal-call headers — forwards tenant context with the shared
+// secret so resolveTenantId() honors X-Foxie-Tenant on the receiving end.
+function internalHeaders(tenantId: string): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Origin: APP_BASE_URL,
+    "User-Agent": "songhwa-vapi-bridge/1",
+    "X-Foxie-Tenant": tenantId,
+  };
+  const secret = process.env.FOXIE_INTERNAL_SECRET?.trim();
+  if (secret) headers["X-Foxie-Internal-Secret"] = secret;
+  return headers;
 }
 
 async function executeTool(
   name: string,
   args: Record<string, unknown>,
   sessionId: string,
+  tenantId: string,
 ): Promise<unknown> {
   const enc = encodeURIComponent;
-  const baseHeaders = {
-    "Content-Type": "application/json",
-    Origin: APP_BASE_URL,
-    "User-Agent": "songhwa-vapi-bridge/1",
-  };
+  const baseHeaders = internalHeaders(tenantId);
 
   try {
     switch (name) {
@@ -48,32 +67,32 @@ async function executeTool(
         const phoneArg = String(args.phone ?? "");
         const nameArg = String(args.name ?? "");
         const param = phoneArg ? `phone=${enc(phoneArg)}` : `name=${enc(nameArg)}`;
-        const r = await fetch(`${APP_BASE_URL}/api/customers?${param}`);
+        const r = await fetch(`${APP_BASE_URL}/api/customers?${param}`, { headers: baseHeaders });
         return (await r.json())?.data ?? { found: false };
       }
       case "get_business_status": {
-        const r = await fetch(`${APP_BASE_URL}/api/business/status`);
+        const r = await fetch(`${APP_BASE_URL}/api/business/status`, { headers: baseHeaders });
         return (await r.json())?.data ?? {};
       }
       case "search_menu": {
-        const r = await fetch(`${APP_BASE_URL}/api/menu/search?q=${enc(String(args.query ?? ""))}`);
+        const r = await fetch(`${APP_BASE_URL}/api/menu/search?q=${enc(String(args.query ?? ""))}`, { headers: baseHeaders });
         return (await r.json())?.data ?? { results: [] };
       }
       case "get_dish_details": {
-        const r = await fetch(`${APP_BASE_URL}/api/menu/dish?id=${enc(String(args.id ?? ""))}`);
+        const r = await fetch(`${APP_BASE_URL}/api/menu/dish?id=${enc(String(args.id ?? ""))}`, { headers: baseHeaders });
         return (await r.json())?.data ?? { error: "not_found" };
       }
       case "get_active_promos": {
-        const r = await fetch(`${APP_BASE_URL}/api/menu/promos`);
+        const r = await fetch(`${APP_BASE_URL}/api/menu/promos`, { headers: baseHeaders });
         return (await r.json())?.data ?? [];
       }
       case "check_allergens": {
-        const r = await fetch(`${APP_BASE_URL}/api/menu/allergens?id=${enc(String(args.id ?? ""))}`);
+        const r = await fetch(`${APP_BASE_URL}/api/menu/allergens?id=${enc(String(args.id ?? ""))}`, { headers: baseHeaders });
         return (await r.json())?.data ?? {};
       }
       case "check_availability": {
         const url = `${APP_BASE_URL}/api/availability?date=${enc(String(args.date ?? ""))}&time=${enc(String(args.time ?? ""))}&pax=${enc(String(args.pax ?? ""))}`;
-        const r = await fetch(url);
+        const r = await fetch(url, { headers: baseHeaders });
         return (await r.json())?.data ?? {};
       }
       case "save_reservation_draft": {
@@ -96,7 +115,7 @@ async function executeTool(
       case "find_reservation": {
         const phone = String(args.phone ?? "");
         const date = args.date ? `&date=${enc(String(args.date))}` : "";
-        const r = await fetch(`${APP_BASE_URL}/api/reservations/find?phone=${enc(phone)}${date}`);
+        const r = await fetch(`${APP_BASE_URL}/api/reservations/find?phone=${enc(phone)}${date}`, { headers: baseHeaders });
         const j = await r.json();
         return { count: j.count ?? 0, reservations: j.data ?? [] };
       }
@@ -182,16 +201,27 @@ async function executeTool(
 }
 
 export async function POST(request: Request) {
-  // Vapi server auth — set X-Vapi-Secret in Vapi assistant config
+  // Vapi server auth — set X-Vapi-Secret in Vapi assistant config.
+  // Constant-time compare (was `!==` — leaked secret length via timing).
   const expected = process.env.VAPI_SERVER_SECRET?.trim();
   const provided = request.headers.get("x-vapi-secret");
-  if (!expected || provided !== expected) {
+  if (!expected || !provided || !constantTimeStringEqual(provided, expected)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
   const payload = (await request.json()) as VapiPayload;
   const calls = payload.message?.toolCallList ?? payload.message?.toolCalls ?? [];
   const sessionId = `vapi_${payload.message?.call?.id ?? Date.now()}`;
+
+  // Tenant resolution priority for Vapi:
+  //   1. Assistant metadata.tenantId (configured per Vapi assistant)
+  //   2. VAPI_TENANT_ID env var (per-deployment override)
+  //   3. DEFAULT_TENANT_ID (songhwa)
+  const tenantId =
+    payload.message?.assistant?.metadata?.tenantId ??
+    payload.message?.call?.assistant?.metadata?.tenantId ??
+    process.env.VAPI_TENANT_ID?.trim() ??
+    DEFAULT_TENANT_ID;
 
   // Vapi expects { results: [{ toolCallId, result }] }
   const results = [];
@@ -204,7 +234,7 @@ export async function POST(request: Request) {
     } catch {
       args = {};
     }
-    const out = await executeTool(call.function.name, args, sessionId);
+    const out = await executeTool(call.function.name, args, sessionId, tenantId);
     results.push({
       toolCallId: call.id,
       result: typeof out === "string" ? out : JSON.stringify(out),
@@ -213,3 +243,7 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ results });
 }
+
+// Suppress unused-import lint warning for verifyBearer (kept for symmetry
+// with cron routes — Vapi uses its own X-Vapi-Secret header instead).
+void verifyBearer;

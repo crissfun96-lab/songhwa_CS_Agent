@@ -4,6 +4,7 @@ import { createCallback } from "@/lib/callbacks/firestore";
 import { URGENCY_ETA_MINUTES } from "@/lib/callbacks/types";
 import { sendCallbackNotification } from "@/lib/telegram";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { resolveTenantId } from "@/lib/tenants/resolver";
 
 function sanitize(text: string): string {
   return text.replace(/[\r\n]+/g, " ").replace(/[*_~`]/g, "").slice(0, 500).trim();
@@ -40,6 +41,7 @@ export async function POST(request: Request) {
       phone: parsed.phone,
       reason: sanitize(parsed.reason),
       urgency: parsed.urgency,
+      tenantId: resolveTenantId(request),
     });
 
     sendCallbackNotification(callback).catch((err) =>

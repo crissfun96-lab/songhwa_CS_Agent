@@ -14,9 +14,8 @@ import { enqueueNewReservation } from "@/lib/wa-queue";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { emitAsync } from "@/lib/metering/firestore";
 import { resolveTenantId } from "@/lib/tenants/resolver";
+import { tc } from "@/lib/tenants/collection";
 import type { Reservation } from "@/lib/types";
-
-const COLLECTION = "songhwa_reservations";
 
 // SECURITY (Bug H4 fix): block CSRF — cross-origin reservation POSTs from
 // attacker pages were succeeding. Combined with Bug C3 (no rate limit) this
@@ -100,6 +99,8 @@ export async function POST(request: Request): Promise<NextResponse<CreateReserva
 
     const body = await request.json();
     const parsed = CreateReservationSchema.parse(body);
+    const tenantId = resolveTenantId(request);
+    const COLLECTION = tc(tenantId, "reservations");
 
     // Per-phone limit to stop a single number being spammed across IPs
     const phoneLimit = await rateLimit(`reservation-phone:${parsed.phone}`, { limit: 5, windowSeconds: 3600 });
@@ -118,6 +119,7 @@ export async function POST(request: Request): Promise<NextResponse<CreateReserva
       parsed.date,
       parsed.time,
       60,
+      tenantId,
     );
     if (existing) {
       return NextResponse.json(
@@ -143,6 +145,8 @@ export async function POST(request: Request): Promise<NextResponse<CreateReserva
       parsed.date,
       parsed.time,
       parsed.pax,
+      undefined,
+      tenantId,
     );
     if (!availability.available) {
       return NextResponse.json(
@@ -230,10 +234,11 @@ export async function POST(request: Request): Promise<NextResponse<CreateReserva
       parsed.date,
       parsed.time,
       parsed.pax,
+      tenantId,
     );
 
     if (parsed.sessionId) {
-      markDraftConverted(parsed.sessionId, reservation.id).catch((err) =>
+      markDraftConverted(parsed.sessionId, reservation.id, tenantId).catch((err) =>
         console.error("[Reservations] draft conversion failed:", err),
       );
     }
@@ -242,13 +247,13 @@ export async function POST(request: Request): Promise<NextResponse<CreateReserva
       console.error("[Telegram] Notification failed:", err),
     );
 
-    enqueueNewReservation(reservation).catch((err) =>
+    enqueueNewReservation(reservation, { tenantId }).catch((err) =>
       console.error("[WA queue] enqueue failed:", err),
     );
 
     // Metering — billable event for tier enforcement + analytics
     emitAsync("reservation", {
-      tenantId: resolveTenantId(request),
+      tenantId,
       channel: "web",
       metadata: { reservationId: reservation.id, pax: reservation.pax },
     });

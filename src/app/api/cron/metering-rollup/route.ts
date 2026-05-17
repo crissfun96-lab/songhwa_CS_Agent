@@ -3,6 +3,7 @@
 
 import { NextResponse } from "next/server";
 import { rollupDay } from "@/lib/metering/firestore";
+import { verifyBearer } from "@/lib/auth-secret";
 
 function ymdKL(date: Date = new Date()): string {
   const f = new Intl.DateTimeFormat("en-CA", {
@@ -13,9 +14,7 @@ function ymdKL(date: Date = new Date()): string {
 }
 
 export async function GET(request: Request) {
-  const expected = process.env.CRON_SECRET?.trim();
-  const auth = request.headers.get("authorization");
-  if (!expected || auth !== `Bearer ${expected}`) {
+  if (!verifyBearer(request.headers.get("authorization"), process.env.CRON_SECRET?.trim())) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

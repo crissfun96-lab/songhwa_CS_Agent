@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 import { createComplaint } from "@/lib/complaints/firestore";
 import { sendComplaintNotification } from "@/lib/telegram";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { resolveTenantId } from "@/lib/tenants/resolver";
 
 function sanitize(text: string): string {
   return text.replace(/[\r\n]+/g, " ").replace(/[*_~`]/g, "").slice(0, 2000).trim();
@@ -50,6 +51,7 @@ export async function POST(request: Request) {
       description: sanitize(parsed.description),
       severity: parsed.severity,
       visitDate: parsed.visit_date,
+      tenantId: resolveTenantId(request),
     });
 
     // Fire-and-forget Telegram alert (never blocks response)

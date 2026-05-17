@@ -1,10 +1,29 @@
 import { getDb } from "../firebase-admin";
-import { DEFAULT_TENANT_ID, TIER_LIMITS, type Tenant, type TenantTier } from "./types";
+import {
+  DEFAULT_TENANT_ID,
+  TIER_LIMITS,
+  type Tenant,
+  type TenantStatus,
+  type TenantTier,
+} from "./types";
 
 const COLLECTION = "foxie_tenants";
 
+// Slugs we never let a tenant claim. "wa" would collide with the `wa_*`
+// prefix swap inside `tc()`, producing malformed collection names.
+const RESERVED_TENANT_SLUGS = new Set([DEFAULT_TENANT_ID, "wa"]);
+
+// Firestore "already exists" error code shape (Admin SDK uses gRPC code 6 or
+// the string "already-exists" depending on version).
+function isAlreadyExists(err: unknown): boolean {
+  const code = (err as { code?: unknown } | null)?.code;
+  return code === 6 || code === "already-exists";
+}
+
 // Small in-memory LRU cache — tenant config is read on every request, so we
 // don't want to hit Firestore each time. Refresh every 60 seconds.
+// NOTE: cache is per-Vercel-container; status changes can lag up to 60s
+// across other containers (acceptable today; consider Redis/KV at scale).
 const TTL_MS = 60_000;
 const cache = new Map<string, { tenant: Tenant; expiresAt: number }>();
 
@@ -29,7 +48,7 @@ export async function getOrSeedSonghwa(): Promise<Tenant> {
     id: DEFAULT_TENANT_ID,
     slug: DEFAULT_TENANT_ID,
     status: "active",
-    tier: "pro", // Songhwa is the showcase tenant — pro tier, unlimited everything
+    tier: "pro",
     business: {
       legalName: "Songhwa Korean Cuisine Sdn Bhd",
       displayName: "Songhwa Korean Cuisine",
@@ -39,7 +58,7 @@ export async function getOrSeedSonghwa(): Promise<Tenant> {
       hoursText: "Daily 11:30 AM-3:00 PM, 5:30 PM-10:00 PM",
     },
     notif: {
-      telegram: undefined, // uses platform env vars
+      telegram: undefined,
       whatsappStaffGroup: "Songhwa Reservations",
     },
     promptOverrides: {
@@ -54,7 +73,20 @@ export async function getOrSeedSonghwa(): Promise<Tenant> {
     createdAt: now,
     updatedAt: now,
   };
-  await getDb().collection(COLLECTION).doc(DEFAULT_TENANT_ID).set(seed);
+
+  const ref = getDb().collection(COLLECTION).doc(DEFAULT_TENANT_ID);
+  try {
+    await ref.create(seed);
+  } catch (err) {
+    if (isAlreadyExists(err)) {
+      // Lost the race against another container — re-fetch the winner.
+      const doc = await ref.get();
+      const tenant = doc.data() as Tenant;
+      cache.set(DEFAULT_TENANT_ID, { tenant, expiresAt: Date.now() + TTL_MS });
+      return tenant;
+    }
+    throw err;
+  }
   cache.set(DEFAULT_TENANT_ID, { tenant: seed, expiresAt: Date.now() + TTL_MS });
   return seed;
 }
@@ -72,12 +104,9 @@ export interface CreateTenantInput {
 
 export async function createTenant(input: CreateTenantInput): Promise<Tenant> {
   const slug = input.slug.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 40);
-  if (!slug || slug === DEFAULT_TENANT_ID) {
-    throw new Error("Invalid slug — must be lowercase, alphanumeric, not 'songhwa'");
+  if (!slug || RESERVED_TENANT_SLUGS.has(slug)) {
+    throw new Error(`Invalid slug — reserved or empty: '${slug}'`);
   }
-
-  const existing = await getDb().collection(COLLECTION).doc(slug).get();
-  if (existing.exists) throw new Error(`Tenant slug '${slug}' already taken`);
 
   const now = new Date().toISOString();
   const trialEnds = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -105,14 +134,39 @@ export async function createTenant(input: CreateTenantInput): Promise<Tenant> {
     createdAt: now,
     updatedAt: now,
   };
-  await getDb().collection(COLLECTION).doc(slug).set(tenant);
+
+  try {
+    await getDb().collection(COLLECTION).doc(slug).create(tenant);
+  } catch (err) {
+    if (isAlreadyExists(err)) {
+      throw new Error(`Tenant slug '${slug}' already taken`);
+    }
+    throw err;
+  }
   cache.delete(slug);
   return tenant;
 }
 
+// Narrow patch type — only scalar fields. Nested objects (business, notif,
+// promptOverrides) are deliberately excluded because Firestore `.update()`
+// REPLACES nested maps instead of merging them. To update a nested field,
+// add a dedicated updater that uses dot-notation paths.
+export interface TenantScalarPatch {
+  status?: TenantStatus;
+  tier?: TenantTier;
+  trialEndsAt?: string;
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+  googleSheetsId?: string;
+  googleSheetsApiKey?: string;
+  googlePlaceId?: string;
+  ownerEmail?: string;
+  ownerName?: string;
+}
+
 export async function updateTenant(
   tenantId: string,
-  patch: Partial<Tenant>,
+  patch: TenantScalarPatch,
 ): Promise<void> {
   const tid = tenantId.toLowerCase();
   await getDb().collection(COLLECTION).doc(tid).update({

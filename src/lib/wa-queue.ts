@@ -1,16 +1,18 @@
 // WhatsApp notification queue — Vercel enqueues, Mac mini Baileys service drains.
 //
 // Flow:
-//   1. Vercel API writes { type, message, target } to `wa_notification_queue` collection
+//   1. Vercel API writes { type, message, target } to the tenant's queue
+//      collection (Songhwa default: `wa_notification_queue`)
 //   2. Mac mini service listens via Firestore onSnapshot
 //   3. Service formats + sends via Baileys → marks `sentAt`
 //
 // This decouples the serverless Vercel runtime from the long-running WA session.
 
 import { getDb } from "./firebase-admin";
+import { tc } from "./tenants/collection";
+import { getTenant } from "./tenants/firestore";
+import { DEFAULT_TENANT_ID } from "./tenants/types";
 import type { Reservation, ReservationModification } from "./types";
-
-const QUEUE_COLLECTION = "wa_notification_queue";
 
 export type WaNotificationType =
   | "new_reservation"
@@ -31,19 +33,40 @@ export interface WaQueueItem {
   metadata?: Record<string, unknown>;
 }
 
-const TARGET_GROUP = "Songhwa Reservations";
+// Default WA group name. In a multi-tenant world this lives on the tenant doc
+// (notif.whatsappStaffGroup). Per-tenant override flows in via the `target` arg.
+const DEFAULT_TARGET_GROUP = "Songhwa Reservations";
 
 async function enqueue(
   type: WaNotificationType,
   message: string,
-  metadata?: Record<string, unknown>,
+  options: {
+    target?: string;
+    metadata?: Record<string, unknown>;
+    tenantId?: string;
+  } = {},
 ): Promise<void> {
   // SAFETY: Skip WhatsApp queue in non-production environments so dev/test
-  // runs don't spam the real Songhwa Reservations group. Override with
-  // WA_FORCE=1 when intentionally testing the WA channel itself.
+  // runs don't spam the real WA group. Override with WA_FORCE=1 when
+  // intentionally testing the WA channel itself.
   if (process.env.NODE_ENV !== "production" && process.env.WA_FORCE !== "1") {
     console.log(`[wa-queue] SKIPPED in dev (${type}): set WA_FORCE=1 to override`);
     return;
+  }
+
+  const tid = options.tenantId ?? DEFAULT_TENANT_ID;
+  const collection = tc(tid, "notification_queue");
+
+  // Resolve target group: explicit option → tenant.notif config → Songhwa default.
+  // Lazy fetch so callers don't have to pre-load the tenant.
+  let target = options.target;
+  if (!target) {
+    try {
+      const tenant = await getTenant(tid);
+      target = tenant?.notif?.whatsappStaffGroup ?? DEFAULT_TARGET_GROUP;
+    } catch {
+      target = DEFAULT_TARGET_GROUP;
+    }
   }
 
   const id = `wa_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -51,14 +74,14 @@ async function enqueue(
     id,
     type,
     message,
-    target: TARGET_GROUP,
+    target,
     createdAt: new Date().toISOString(),
     attempts: 0,
     sentAt: null,
     error: null,
-    ...(metadata && { metadata }),
+    ...(options.metadata && { metadata: options.metadata }),
   };
-  await getDb().collection(QUEUE_COLLECTION).doc(id).set(item);
+  await getDb().collection(collection).doc(id).set(item);
 }
 
 // ── Message formatters (WhatsApp markdown: *bold*, _italic_) ──
@@ -75,7 +98,15 @@ function klTime(iso?: string): string {
   });
 }
 
-export async function enqueueNewReservation(r: Reservation): Promise<void> {
+export interface EnqueueOpts {
+  tenantId?: string;
+  target?: string;
+}
+
+export async function enqueueNewReservation(
+  r: Reservation,
+  opts: EnqueueOpts = {},
+): Promise<void> {
   const lines = [
     "🔔 *New Reservation* (AI Agent)",
     "",
@@ -88,12 +119,16 @@ export async function enqueueNewReservation(r: Reservation): Promise<void> {
   if (r.remarks) lines.push(`📝 ${r.remarks}`);
   lines.push("", `_Booked ${klTime(r.createdAt)}_`);
 
-  await enqueue("new_reservation", lines.join("\n"), { reservationId: r.id });
+  await enqueue("new_reservation", lines.join("\n"), {
+    ...opts,
+    metadata: { reservationId: r.id },
+  });
 }
 
 export async function enqueueReservationUpdate(
   r: Reservation,
   mod: ReservationModification,
+  opts: EnqueueOpts = {},
 ): Promise<void> {
   const lines = [
     "✏️ *Reservation Updated*",
@@ -109,10 +144,16 @@ export async function enqueueReservationUpdate(
   if (mod.reason) lines.push("", `_Reason: ${mod.reason}_`);
   lines.push(`_By ${mod.by} · ${klTime()}_`);
 
-  await enqueue("reservation_update", lines.join("\n"), { reservationId: r.id });
+  await enqueue("reservation_update", lines.join("\n"), {
+    ...opts,
+    metadata: { reservationId: r.id },
+  });
 }
 
-export async function enqueueReservationCancel(r: Reservation): Promise<void> {
+export async function enqueueReservationCancel(
+  r: Reservation,
+  opts: EnqueueOpts = {},
+): Promise<void> {
   const lines = [
     "❌ *Reservation Cancelled*",
     "",
@@ -122,5 +163,8 @@ export async function enqueueReservationCancel(r: Reservation): Promise<void> {
   if (r.cancelReason) lines.push("", `💬 ${r.cancelReason}`);
   lines.push("", `_${klTime()}_`);
 
-  await enqueue("reservation_cancel", lines.join("\n"), { reservationId: r.id });
+  await enqueue("reservation_cancel", lines.join("\n"), {
+    ...opts,
+    metadata: { reservationId: r.id },
+  });
 }

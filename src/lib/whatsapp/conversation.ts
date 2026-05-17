@@ -2,8 +2,9 @@
 // Stored per-phone in Firestore so the dispatcher has multi-turn context.
 
 import { getDb } from "../firebase-admin";
+import { tc } from "../tenants/collection";
+import { DEFAULT_TENANT_ID } from "../tenants/types";
 
-const COLLECTION = "wa_conversation_history";
 const MAX_TURNS = 30; // last N turns kept; older trimmed
 
 export type ConvRole = "user" | "model" | "function";
@@ -28,8 +29,14 @@ function phoneKey(phone: string): string {
   return phone.replace(/\D/g, "") || "unknown";
 }
 
-export async function loadHistory(phone: string): Promise<ConvMessage[]> {
-  const doc = await getDb().collection(COLLECTION).doc(phoneKey(phone)).get();
+export async function loadHistory(
+  phone: string,
+  tenantId: string = DEFAULT_TENANT_ID,
+): Promise<ConvMessage[]> {
+  const doc = await getDb()
+    .collection(tc(tenantId, "conversation_history"))
+    .doc(phoneKey(phone))
+    .get();
   if (!doc.exists) return [];
   const data = doc.data() as ConvDoc;
   return data.messages ?? [];
@@ -39,8 +46,11 @@ export async function appendMessage(
   phone: string,
   message: ConvMessage,
   customerName?: string,
+  tenantId: string = DEFAULT_TENANT_ID,
 ): Promise<void> {
-  const ref = getDb().collection(COLLECTION).doc(phoneKey(phone));
+  const ref = getDb()
+    .collection(tc(tenantId, "conversation_history"))
+    .doc(phoneKey(phone));
   await getDb().runTransaction(async (tx) => {
     const doc = await tx.get(ref);
     const existing = (doc.data() as ConvDoc | undefined) ?? null;
@@ -60,6 +70,12 @@ export async function appendMessage(
   });
 }
 
-export async function clearHistory(phone: string): Promise<void> {
-  await getDb().collection(COLLECTION).doc(phoneKey(phone)).delete();
+export async function clearHistory(
+  phone: string,
+  tenantId: string = DEFAULT_TENANT_ID,
+): Promise<void> {
+  await getDb()
+    .collection(tc(tenantId, "conversation_history"))
+    .doc(phoneKey(phone))
+    .delete();
 }

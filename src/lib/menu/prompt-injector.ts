@@ -17,6 +17,8 @@ import {
   hoursToText,
   computeCurrentStatus,
 } from "../business/firestore";
+import { getTenant } from "../tenants/firestore";
+import { DEFAULT_TENANT_ID } from "../tenants/types";
 import type { CompactMenuSummary } from "./types";
 import type { BusinessInfo } from "../business/types";
 
@@ -271,33 +273,68 @@ export async function buildCompactSummary(): Promise<CompactMenuSummary> {
 }
 
 // ── Assemble the full system prompt ───────────────────────────
-export async function buildSystemPrompt(): Promise<string> {
-  const [summary, business] = await Promise.all([
+// Tenant-aware: reads `tenant.business` + `tenant.promptOverrides` as the
+// source of truth, falling back to the live `business_info` doc (synced
+// from Google Places), and finally to the Songhwa hardcoded fallback.
+//
+// Resolution order for each field:
+//   1. live business_info doc (synced daily from GBP)
+//   2. tenant.business.* (admin-edited static info)
+//   3. FALLBACK_BUSINESS (Songhwa)
+//
+// Tenants can provide a full `tenant.promptOverrides.systemPromptTemplate`
+// to replace the Songhwa-shaped BASE_PROMPT_TEMPLATE entirely (white-label).
+export async function buildSystemPrompt(
+  tenantId: string = DEFAULT_TENANT_ID,
+): Promise<string> {
+  const [summary, business, tenant] = await Promise.all([
     getCompactSummary(),
-    getBusinessInfo(),
+    getBusinessInfo(tenantId),
+    getTenant(tenantId),
   ]);
 
   const summaryJson = summary
     ? JSON.stringify(summary, null, 2)
     : '{"note": "Menu data not yet synced. Use search_menu tool for any menu question."}';
 
-  const name = business?.name ?? FALLBACK_BUSINESS.name;
-  const address = business?.address ?? FALLBACK_BUSINESS.address;
-  const phone = business?.phone ?? FALLBACK_BUSINESS.phone;
+  const tenantBusiness = tenant?.business;
+  const ovr = tenant?.promptOverrides ?? {};
+
+  const name =
+    business?.name ?? tenantBusiness?.displayName ?? FALLBACK_BUSINESS.name;
+  const address =
+    business?.address ?? tenantBusiness?.address ?? FALLBACK_BUSINESS.address;
+  const phone =
+    business?.phone ?? tenantBusiness?.phone ?? FALLBACK_BUSINESS.phone;
   const hoursText = business
     ? hoursToText(business.hours)
-    : FALLBACK_BUSINESS.weekdayDescriptions.join("; ");
+    : tenantBusiness?.hoursText ??
+      FALLBACK_BUSINESS.weekdayDescriptions.join("; ");
   const statusText = business
     ? computeCurrentStatus(business).statusText
     : "Use get_business_status tool for current status";
 
-  return BASE_PROMPT_TEMPLATE
-    .replace("{{BUSINESS_NAME}}", name)
-    .replace("{{BUSINESS_ADDRESS}}", address)
-    .replace("{{BUSINESS_PHONE}}", phone)
-    .replace("{{BUSINESS_HOURS}}", hoursText)
-    .replace("{{CURRENT_STATUS}}", statusText)
-    .replace("{{MENU_SUMMARY_JSON}}", summaryJson);
+  // Tenant can fully white-label the prompt; Songhwa keeps the default template.
+  const template = ovr.systemPromptTemplate ?? BASE_PROMPT_TEMPLATE;
+
+  let prompt = template
+    .replaceAll("{{BUSINESS_NAME}}", name)
+    .replaceAll("{{BUSINESS_ADDRESS}}", address)
+    .replaceAll("{{BUSINESS_PHONE}}", phone)
+    .replaceAll("{{BUSINESS_HOURS}}", hoursText)
+    .replaceAll("{{CURRENT_STATUS}}", statusText)
+    .replaceAll("{{MENU_SUMMARY_JSON}}", summaryJson);
+
+  // Append any tenant-specific additional rules — added AFTER the base rules
+  // so tenants can extend without rewriting the whole template.
+  if (ovr.additionalRules) {
+    prompt += "\n\n═══════════════════════════════════════════\n";
+    prompt += "TENANT-SPECIFIC RULES\n";
+    prompt += "═══════════════════════════════════════════\n";
+    prompt += ovr.additionalRules;
+  }
+
+  return prompt;
 }
 
 // ── Tool declarations for Gemini Live ─────────────────────────

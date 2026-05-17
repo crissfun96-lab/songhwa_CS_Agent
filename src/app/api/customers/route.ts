@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { lookupCustomerByPhone, lookupCustomerByName } from "@/lib/customers";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { resolveTenantId } from "@/lib/tenants/resolver";
 
 // Rate-limited customer lookup.
 // PREFERRED: ?phone=01154302561 — phone is the canonical identifier.
@@ -45,9 +46,10 @@ export async function GET(request: Request) {
   }
 
   try {
+    const tenantId = resolveTenantId(request);
     const customer = phone
-      ? await lookupCustomerByPhone(phone)
-      : await lookupCustomerByName(lookupKey);
+      ? await lookupCustomerByPhone(phone, tenantId)
+      : await lookupCustomerByName(lookupKey, tenantId);
 
     if (customer) {
       const recentOrders = customer.favoriteOrders.slice(-3).join(", ") || "none recorded";

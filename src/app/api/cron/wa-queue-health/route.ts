@@ -9,8 +9,10 @@
 
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/firebase-admin";
+import { verifyBearer } from "@/lib/auth-secret";
+import { tc } from "@/lib/tenants/collection";
+import { DEFAULT_TENANT_ID } from "@/lib/tenants/types";
 
-const QUEUE_COLLECTION = "wa_notification_queue";
 const DEAD_THRESHOLD_ATTEMPTS = 3;
 const TELEGRAM_API = (token: string) => `https://api.telegram.org/bot${token}/sendMessage`;
 
@@ -37,15 +39,15 @@ async function alertStaff(message: string): Promise<void> {
 export async function GET(request: Request) {
   // Auth: Vercel cron sends Authorization: Bearer $CRON_SECRET.
   // Generic 401 regardless of env config state (no information leak).
-  const expected = process.env.CRON_SECRET?.trim();
-  const auth = request.headers.get("authorization");
-  if (!expected || auth !== `Bearer ${expected}`) {
+  if (!verifyBearer(request.headers.get("authorization"), process.env.CRON_SECRET?.trim())) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
   try {
+    // Cron runs against the platform default tenant. Multi-tenant deployment
+    // would iterate foxie_tenants and check each tenant's queue separately.
     const snap = await getDb()
-      .collection(QUEUE_COLLECTION)
+      .collection(tc(DEFAULT_TENANT_ID, "notification_queue"))
       .where("sentAt", "==", null)
       .where("attempts", ">=", DEAD_THRESHOLD_ATTEMPTS)
       .limit(50)

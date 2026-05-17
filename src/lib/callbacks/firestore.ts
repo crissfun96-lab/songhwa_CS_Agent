@@ -1,20 +1,23 @@
 import { getDb } from "../firebase-admin";
 import { generateTicketId } from "../tickets";
+import { tc } from "../tenants/collection";
+import { DEFAULT_TENANT_ID } from "../tenants/types";
 import type { CallbackRequest, CallbackUrgency } from "./types";
 import { URGENCY_ETA_MINUTES } from "./types";
-
-const COLLECTION = "songhwa_callbacks";
 
 export interface CreateCallbackInput {
   name: string;
   phone: string;
   reason: string;
   urgency?: CallbackUrgency;
+  tenantId?: string;
 }
 
 export async function createCallback(
   input: CreateCallbackInput,
 ): Promise<CallbackRequest> {
+  const tid = input.tenantId ?? DEFAULT_TENANT_ID;
+  const collection = tc(tid, "callbacks");
   const now = new Date();
   const urgency = input.urgency ?? "medium";
   const etaMinutes = URGENCY_ETA_MINUTES[urgency];
@@ -35,13 +38,15 @@ export async function createCallback(
     updatedAt: now.toISOString(),
   };
 
-  await getDb().collection(COLLECTION).doc(callback.id).set(callback);
+  await getDb().collection(collection).doc(callback.id).set(callback);
   return callback;
 }
 
-export async function getActiveCallbacks(): Promise<CallbackRequest[]> {
+export async function getActiveCallbacks(
+  tenantId: string = DEFAULT_TENANT_ID,
+): Promise<CallbackRequest[]> {
   const snapshot = await getDb()
-    .collection(COLLECTION)
+    .collection(tc(tenantId, "callbacks"))
     .where("status", "in", ["queued", "in_progress"])
     .orderBy("urgency", "desc")
     .orderBy("createdAt", "asc")

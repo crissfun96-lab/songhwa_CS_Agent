@@ -1,14 +1,13 @@
 // Reservation lifecycle: find, update, cancel. Used by BOTH agent and admin.
 
 import { getDb } from "../firebase-admin";
+import { tc } from "../tenants/collection";
+import { DEFAULT_TENANT_ID } from "../tenants/types";
 import type {
   Reservation,
   ReservationModification,
-  ReservationStatus,
 } from "../types";
 import { checkAvailability, normalizeTime } from "./availability";
-
-const COLLECTION = "songhwa_reservations";
 
 // ── Normalize phone for matching ──────────────────────────────
 // Canonical form: always starts with "0" (Malaysian mobile format).
@@ -27,23 +26,26 @@ export interface FindQuery {
   phone: string;
   date?: string;
   activeOnly?: boolean;
+  tenantId?: string;
 }
 
 export async function findReservationsByPhone(
   query: FindQuery,
 ): Promise<Reservation[]> {
   const needle = normalizePhone(query.phone);
+  const tid = query.tenantId ?? DEFAULT_TENANT_ID;
+  const collection = tc(tid, "reservations");
 
   // Query by indexed phoneNormalized field (see backfill migration).
   // Falls back to raw phone match for old records that predate the index.
   const [byIndex, byRaw] = await Promise.all([
     getDb()
-      .collection(COLLECTION)
+      .collection(collection)
       .where("phoneNormalized", "==", needle)
       .get(),
     // Fallback: still scan records with no phoneNormalized field
     getDb()
-      .collection(COLLECTION)
+      .collection(collection)
       .where("phone", "==", query.phone)
       .get(),
   ]);
@@ -74,6 +76,7 @@ export interface UpdateInput {
   reason?: string;
   changes: Partial<Pick<Reservation, "date" | "time" | "pax" | "menuChoice" | "remarks" | "name">>;
   skipAvailabilityCheck?: boolean;
+  tenantId?: string;
 }
 
 export type UpdateResult =
@@ -87,7 +90,8 @@ export type UpdateResult =
 
 export async function updateReservation(input: UpdateInput): Promise<UpdateResult> {
   const db = getDb();
-  const ref = db.collection(COLLECTION).doc(input.id);
+  const tid = input.tenantId ?? DEFAULT_TENANT_ID;
+  const ref = db.collection(tc(tid, "reservations")).doc(input.id);
   const doc = await ref.get();
 
   if (!doc.exists) {
@@ -147,6 +151,7 @@ export async function updateReservation(input: UpdateInput): Promise<UpdateResul
         newState.time,
         newState.pax,
         input.id,
+        tid,
       );
       if (!avail.available) {
         return {
@@ -195,6 +200,7 @@ export interface CancelInput {
   cancelledBy: "agent" | "admin" | "customer";
   actor?: string;
   reason?: string;
+  tenantId?: string;
 }
 
 export type CancelResult =
@@ -203,7 +209,8 @@ export type CancelResult =
 
 export async function cancelReservation(input: CancelInput): Promise<CancelResult> {
   const db = getDb();
-  const ref = db.collection(COLLECTION).doc(input.id);
+  const tid = input.tenantId ?? DEFAULT_TENANT_ID;
+  const ref = db.collection(tc(tid, "reservations")).doc(input.id);
   const doc = await ref.get();
   if (!doc.exists) {
     return { success: false, error: "Reservation not found", code: "not_found" };

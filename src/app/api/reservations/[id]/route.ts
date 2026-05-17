@@ -9,16 +9,19 @@ import {
 import { sendReservationUpdateNotification, sendReservationCancelNotification } from "@/lib/telegram";
 import { enqueueReservationUpdate, enqueueReservationCancel } from "@/lib/wa-queue";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { resolveTenantId } from "@/lib/tenants/resolver";
+import { tc } from "@/lib/tenants/collection";
 import type { Reservation } from "@/lib/types";
 
 // Ownership verification — PATCH/DELETE require proof the caller owns this reservation.
 // Accepts: sessionId (same voice session that created it) OR phone match.
 async function verifyOwnership(
   id: string,
+  tenantId: string,
   providedPhone?: string,
   providedSessionId?: string,
 ): Promise<{ ok: true; reservation: Reservation } | { ok: false; status: number; error: string }> {
-  const doc = await getDb().collection("songhwa_reservations").doc(id).get();
+  const doc = await getDb().collection(tc(tenantId, "reservations")).doc(id).get();
   if (!doc.exists) {
     return { ok: false, status: 404, error: "Reservation not found" };
   }
@@ -73,8 +76,10 @@ export async function PATCH(
       );
     }
 
+    const tenantId = resolveTenantId(request);
+
     // Ownership check
-    const ownership = await verifyOwnership(id, parsed.phone, parsed.sessionId);
+    const ownership = await verifyOwnership(id, tenantId, parsed.phone, parsed.sessionId);
     if (!ownership.ok) {
       return NextResponse.json({ success: false, error: ownership.error }, { status: ownership.status });
     }
@@ -92,6 +97,7 @@ export async function PATCH(
         ...(parsed.menuChoice !== undefined && { menuChoice: parsed.menuChoice }),
         ...(parsed.remarks !== undefined && { remarks: parsed.remarks }),
       },
+      tenantId,
     });
 
     if (!result.success) {
@@ -101,7 +107,7 @@ export async function PATCH(
     sendReservationUpdateNotification(result.reservation, result.modification).catch((err) =>
       console.error("[Telegram] update notification failed:", err),
     );
-    enqueueReservationUpdate(result.reservation, result.modification).catch((err) =>
+    enqueueReservationUpdate(result.reservation, result.modification, { tenantId }).catch((err) =>
       console.error("[WA queue] update enqueue failed:", err),
     );
 
@@ -153,7 +159,8 @@ export async function DELETE(
       );
     }
 
-    const ownership = await verifyOwnership(id, body.phone, body.sessionId);
+    const tenantId = resolveTenantId(request);
+    const ownership = await verifyOwnership(id, tenantId, body.phone, body.sessionId);
     if (!ownership.ok) {
       return NextResponse.json({ success: false, error: ownership.error }, { status: ownership.status });
     }
@@ -163,6 +170,7 @@ export async function DELETE(
       cancelledBy: "agent",
       actor: body.sessionId,
       reason: body.reason,
+      tenantId,
     });
 
     if (!result.success) {
@@ -172,7 +180,7 @@ export async function DELETE(
     sendReservationCancelNotification(result.reservation).catch((err) =>
       console.error("[Telegram] cancel notification failed:", err),
     );
-    enqueueReservationCancel(result.reservation).catch((err) =>
+    enqueueReservationCancel(result.reservation, { tenantId }).catch((err) =>
       console.error("[WA queue] cancel enqueue failed:", err),
     );
 

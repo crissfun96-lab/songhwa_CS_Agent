@@ -213,3 +213,67 @@ Full research dossier coming: `docs/plans/voice-stack-alternatives.md`
 3. Continue from first unticked item
 4. Update checkboxes as work completes
 5. Reference: `docs/plans/voice-agent-v2.md` for original architecture
+
+---
+
+## Hardening Pass — 2026-05-17 PM (Plan 2 / Production Audit)
+
+Parallel security + code + database review of the SaaS layer (tenants/, metering/, billing/, onboard/, handoff/). 17 surgical fixes landed; full audit kept in [hardening-2026-05-17.md](./hardening-2026-05-17.md) (deferred work + deep findings).
+
+### Fixed in this pass
+
+- [x] **Firestore defense-in-depth** — `firestore.rules` (default-deny client SDK), `firestore.indexes.json` (8 composite indexes for hot queries), `firebase.json` (deploy wiring). Deploy: `firebase deploy --only firestore:rules,firestore:indexes`
+- [x] **`/api/billing/checkout`** — whitelisted `priceId` against `STRIPE_ALLOWED_PRICE_IDS`, 10/hr/IP rate limit, `trialDays` capped at 30 (was 90)
+- [x] **`/api/onboard`** — stripped `enterprise` from public tier enum (now `starter|growth|pro`)
+- [x] **`/api/songhwa-token`** — fallback rate limit 60→10/hr, added `STRICT_TOKEN_MODE=true` flag to disable the apiKey fallback entirely once `services/ws-proxy/` is deployed
+- [x] **`tenants/resolver.ts`** — `X-Foxie-Tenant` header now requires matching `X-Foxie-Internal-Secret` (env: `FOXIE_INTERNAL_SECRET`); silently ignored otherwise. Added `wa` to reserved subdomains
+- [x] **`tenants/firestore.ts`** — atomic `.create()` for `createTenant` + `getOrSeedSonghwa` (was TOCTOU race), narrowed `updateTenant` patch type to scalar fields (nested objects blocked by type system), reserved slugs include `wa`
+- [x] **`billing/webhook`** — returns 500 on handler exception so Stripe retries (was 200, silently swallowing `updateTenant` failures)
+- [x] **`billing/stripe.ts` `verifyAndParseWebhook`** — explicit length guard before `timingSafeEqual` (was relying on throw-then-catch)
+- [x] **`metering/firestore.ts`** — sharded event IDs by tenant prefix (eliminates `m_*` hot key), `crypto.randomUUID` (eliminates burst collision), paginated `rollupDay` with 500-doc pages + batched writes (eliminates OOM/timeout), write-through counter doc `foxie_metering_counters/{tid}_{ym}_{type}` via `FieldValue.increment` → `getLiveMonthUsage` is now O(1) instead of O(N)
+- [x] **`middleware.ts`** + new **`src/lib/auth-secret.ts`** — fixed length-oracle in `constantTimeEqual` (loop runs `maxLen` iterations regardless of input length). Shared `constantTimeStringEqual` + `verifyBearer` helpers usable from Edge and Node runtimes
+- [x] **3 cron routes** (`metering-rollup`, `wa-dispatch`, `wa-queue-health`) — use `verifyBearer` for `CRON_SECRET` (constant-time)
+- [x] **`rate-limit.ts` `getClientIp`** — `x-vercel-forwarded-for` now takes LAST hop (was first hop = client-controlled → spoofable)
+- [x] **Build re-verified GREEN** — all 49 routes compile, TypeScript strict mode passes
+
+### Deferred — bundled into Plan 3 (multi-tenant migration)
+
+These were flagged CRITICAL/HIGH by the security review but are not surgical fixes — they require systematic refactor across many files:
+
+- [x] **C2 — Hardcoded `songhwa_*` collections** — DONE 2026-05-17 PM. All 9 modules now use `tc(tenantId, name)` with optional tenant param. See `hardening-2026-05-17.md` → "Plan 3a wave" section.
+- [x] **H7 — `wa_inbound_messages` cross-tenant collection** — DONE 2026-05-17 PM. WA webhook + dispatcher route through `tc()`.
+- [x] **H11 — `handoff/firestore.ts` hardcodes `songhwa_handoffs`** — DONE 2026-05-17 PM. createHandoff + resolveHandoff + getWaConversationMode all accept tenantId.
+
+### Deferred — low priority / require infra
+
+- [ ] **C5 partial — `GEMINI_API_KEY` fallback path** — fully closed by deploying `services/ws-proxy/` to Fly.io + setting `STRICT_TOKEN_MODE=true`. Code is ready; awaits Chris deploy
+- [ ] **H4 — Vapi bridge internal secret separation** — when Vapi traffic scales
+- [ ] **H6 — Rate-limit fail-open** — add in-process LRU fallback when Firestore quota becomes a real risk
+- [ ] **H2 — Per-tenant admin auth** — needed before onboarding tenant #2 with admin console access (operator-only today)
+- [ ] **`console.log` cleanup** — 6 files use raw `console.error` / `console.warn`. Replace with structured logger when adding observability
+- [ ] **React-hooks ESLint errors in admin pages** — 3 pre-existing: setState-in-effect (`callbacks/page.tsx:35`, `complaints/page.tsx:37`), impure-in-render (`handoffs/page.tsx:69`). Not security-blocking
+- [ ] **Next.js 16 `middleware` deprecation** — rename to `proxy` per Next 16 conventions
+
+### New env vars introduced (Chris: add to Vercel)
+
+| Var | Required | Purpose |
+|---|---|---|
+| `STRIPE_ALLOWED_PRICE_IDS` | Production yes | Comma-separated allowlist of Stripe price IDs. Without it, checkout accepts any priceId (dev convenience) |
+| `STRICT_TOKEN_MODE` | After ws-proxy deploy | Set to `true` to disable the API key fallback in `/api/songhwa-token` |
+| `FOXIE_INTERNAL_SECRET` | Optional (multi-tenant) | Required if `X-Foxie-Tenant` header is set by internal callers (Vapi bridge, WA dispatcher). Subdomain resolution works without it |
+
+### Deploy checklist for these fixes
+
+```bash
+# 1. Deploy Firestore rules + indexes
+firebase deploy --only firestore:rules,firestore:indexes
+
+# 2. Set new env vars in Vercel
+#    STRIPE_ALLOWED_PRICE_IDS=price_xxx_starter,price_xxx_growth,price_xxx_pro
+#    STRICT_TOKEN_MODE=true   ← only after ws-proxy is deployed
+
+# 3. Push + deploy
+git push && vercel --prod
+
+# 4. Smoke-test the 11-step manual test script (see top of this doc)
+```

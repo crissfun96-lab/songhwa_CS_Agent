@@ -37,8 +37,7 @@ export async function POST(request: Request) {
         }
         break;
       }
-      case "customer.subscription.deleted":
-      case "customer.subscription.canceled": {
+      case "customer.subscription.deleted": {
         if (tenantId) {
           await updateTenant(tenantId, { status: "cancelled" });
           sendToStaffRaw(`❌ <b>Subscription cancelled</b>\n\nTenant: <code>${tenantId}</code>`).catch(() => {});
@@ -58,7 +57,10 @@ export async function POST(request: Request) {
     }
   } catch (err) {
     console.error("[stripe webhook] handler error:", err);
-    // Still return 200 so Stripe doesn't retry — we already received it
+    // Return 500 so Stripe retries (up to 72h). A failed updateTenant means
+    // subscription state did NOT propagate to Firestore — silently swallowing
+    // this leaves a paid customer in the wrong state forever.
+    return NextResponse.json({ error: "handler_failed" }, { status: 500 });
   }
 
   return NextResponse.json({ received: true });

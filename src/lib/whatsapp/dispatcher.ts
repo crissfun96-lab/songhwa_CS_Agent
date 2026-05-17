@@ -16,8 +16,9 @@ import { callGemini, toGeminiContents } from "./gemini-text";
 import { sendText } from "./meta-client";
 import { getWaConversationMode } from "../handoff/firestore";
 import { buildSystemPrompt, TOOL_DECLARATIONS } from "../menu/prompt-injector";
+import { tc } from "../tenants/collection";
+import { DEFAULT_TENANT_ID } from "../tenants/types";
 
-const INBOUND_COLLECTION = "wa_inbound_messages";
 const MAX_TOOL_ROUNDS = 4;
 
 interface InboundMessage {
@@ -39,19 +40,30 @@ const APP_BASE_URL =
   process.env.NEXT_PUBLIC_APP_URL?.trim() ||
   "https://songhwa-cs-agent.vercel.app";
 
+// Build the internal-call headers — forwards tenant context with a secret
+// so resolveTenantId() on the receiving end honors X-Foxie-Tenant.
+function internalHeaders(tenantId: string): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Origin: APP_BASE_URL,
+    "User-Agent": "songhwa-wa-dispatcher/1",
+    "X-Foxie-Tenant": tenantId,
+  };
+  const secret = process.env.FOXIE_INTERNAL_SECRET?.trim();
+  if (secret) headers["X-Foxie-Internal-Secret"] = secret;
+  return headers;
+}
+
 // Server-side tool execution — calls our own deployed endpoints with
 // Origin allowed so the WA tenant uses the same code paths as web voice.
 async function executeTool(
   name: string,
   args: Record<string, unknown>,
   sessionId: string,
+  tenantId: string,
 ): Promise<Record<string, unknown>> {
   const enc = encodeURIComponent;
-  const baseHeaders = {
-    "Content-Type": "application/json",
-    Origin: APP_BASE_URL,
-    "User-Agent": "songhwa-wa-dispatcher/1",
-  };
+  const baseHeaders = internalHeaders(tenantId);
 
   try {
     switch (name) {
@@ -59,32 +71,32 @@ async function executeTool(
         const phoneArg = String(args.phone ?? "");
         const nameArg = String(args.name ?? "");
         const param = phoneArg ? `phone=${enc(phoneArg)}` : `name=${enc(nameArg)}`;
-        const r = await fetch(`${APP_BASE_URL}/api/customers?${param}`);
+        const r = await fetch(`${APP_BASE_URL}/api/customers?${param}`, { headers: baseHeaders });
         return (await r.json())?.data ?? { found: false };
       }
       case "get_business_status": {
-        const r = await fetch(`${APP_BASE_URL}/api/business/status`);
+        const r = await fetch(`${APP_BASE_URL}/api/business/status`, { headers: baseHeaders });
         return (await r.json())?.data ?? {};
       }
       case "search_menu": {
-        const r = await fetch(`${APP_BASE_URL}/api/menu/search?q=${enc(String(args.query ?? ""))}`);
+        const r = await fetch(`${APP_BASE_URL}/api/menu/search?q=${enc(String(args.query ?? ""))}`, { headers: baseHeaders });
         return (await r.json())?.data ?? { results: [] };
       }
       case "get_dish_details": {
-        const r = await fetch(`${APP_BASE_URL}/api/menu/dish?id=${enc(String(args.id ?? ""))}`);
+        const r = await fetch(`${APP_BASE_URL}/api/menu/dish?id=${enc(String(args.id ?? ""))}`, { headers: baseHeaders });
         return (await r.json())?.data ?? { error: "not_found" };
       }
       case "get_active_promos": {
-        const r = await fetch(`${APP_BASE_URL}/api/menu/promos`);
+        const r = await fetch(`${APP_BASE_URL}/api/menu/promos`, { headers: baseHeaders });
         return (await r.json())?.data ?? [];
       }
       case "check_allergens": {
-        const r = await fetch(`${APP_BASE_URL}/api/menu/allergens?id=${enc(String(args.id ?? ""))}`);
+        const r = await fetch(`${APP_BASE_URL}/api/menu/allergens?id=${enc(String(args.id ?? ""))}`, { headers: baseHeaders });
         return (await r.json())?.data ?? {};
       }
       case "check_availability": {
         const url = `${APP_BASE_URL}/api/availability?date=${enc(String(args.date ?? ""))}&time=${enc(String(args.time ?? ""))}&pax=${enc(String(args.pax ?? ""))}`;
-        const r = await fetch(url);
+        const r = await fetch(url, { headers: baseHeaders });
         return (await r.json())?.data ?? {};
       }
       case "save_reservation_draft": {
@@ -107,7 +119,7 @@ async function executeTool(
       case "find_reservation": {
         const phone = String(args.phone ?? "");
         const date = args.date ? `&date=${enc(String(args.date))}` : "";
-        const r = await fetch(`${APP_BASE_URL}/api/reservations/find?phone=${enc(phone)}${date}`);
+        const r = await fetch(`${APP_BASE_URL}/api/reservations/find?phone=${enc(phone)}${date}`, { headers: baseHeaders });
         const j = await r.json();
         return { count: j.count ?? 0, reservations: j.data ?? [] };
       }
@@ -191,7 +203,10 @@ async function executeTool(
   }
 }
 
-export async function processInboundMessage(msg: InboundMessage): Promise<{
+export async function processInboundMessage(
+  msg: InboundMessage,
+  tenantId: string = DEFAULT_TENANT_ID,
+): Promise<{
   ok: boolean;
   replyText?: string;
   error?: string;
@@ -202,7 +217,7 @@ export async function processInboundMessage(msg: InboundMessage): Promise<{
   }
 
   // Check conversation mode — silent if human handoff is active
-  const mode = await getWaConversationMode(msg.from);
+  const mode = await getWaConversationMode(msg.from, tenantId);
   if (mode === "human") {
     return { ok: true, error: "human_mode — AI silent" };
   }
@@ -212,8 +227,8 @@ export async function processInboundMessage(msg: InboundMessage): Promise<{
 
   // Load conversation history + build prompt
   const [history, systemPrompt] = await Promise.all([
-    loadHistory(customerPhone),
-    buildSystemPrompt(),
+    loadHistory(customerPhone, tenantId),
+    buildSystemPrompt(tenantId),
   ]);
 
   // Adapt the voice-first system prompt for WhatsApp text mode
@@ -225,7 +240,7 @@ export async function processInboundMessage(msg: InboundMessage): Promise<{
     text: msg.text,
     at: new Date().toISOString(),
   };
-  await appendMessage(customerPhone, userMsg, msg.customerName ?? undefined);
+  await appendMessage(customerPhone, userMsg, msg.customerName ?? undefined, tenantId);
 
   // Tool-call loop (Gemini may need multiple rounds to satisfy the user)
   const contents = toGeminiContents([...history, userMsg]);
@@ -244,6 +259,7 @@ export async function processInboundMessage(msg: InboundMessage): Promise<{
         result.functionCall.name,
         result.functionCall.args,
         sessionId,
+        tenantId,
       );
 
       contents.push({
@@ -267,12 +283,12 @@ export async function processInboundMessage(msg: InboundMessage): Promise<{
         role: "model",
         functionCall: result.functionCall,
         at: new Date().toISOString(),
-      });
+      }, undefined, tenantId);
       await appendMessage(customerPhone, {
         role: "function",
         functionResponse: { name: result.functionCall.name, response: toolResult },
         at: new Date().toISOString(),
-      });
+      }, undefined, tenantId);
       continue;
     }
 
@@ -290,19 +306,22 @@ export async function processInboundMessage(msg: InboundMessage): Promise<{
     role: "model",
     text: finalText,
     at: new Date().toISOString(),
-  });
+  }, undefined, tenantId);
 
   return { ok: true, replyText: finalText };
 }
 
 // Batch-process all unprocessed inbound messages (cron entry point)
-export async function processInboundBatch(limit = 20): Promise<{
+export async function processInboundBatch(
+  limit = 20,
+  tenantId: string = DEFAULT_TENANT_ID,
+): Promise<{
   processed: number;
   failed: number;
   skipped: number;
 }> {
   const snap = await getDb()
-    .collection(INBOUND_COLLECTION)
+    .collection(tc(tenantId, "inbound_messages"))
     .where("processed", "==", false)
     .orderBy("receivedAt", "asc")
     .limit(limit)
@@ -315,7 +334,7 @@ export async function processInboundBatch(limit = 20): Promise<{
   for (const doc of snap.docs) {
     const msg = doc.data() as InboundMessage;
     try {
-      const result = await processInboundMessage(msg);
+      const result = await processInboundMessage(msg, tenantId);
       if (!result.ok) {
         failed++;
         await doc.ref.update({ processed: true, processingError: result.error ?? "unknown" });

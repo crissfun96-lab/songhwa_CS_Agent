@@ -92,7 +92,12 @@ export function verifyAndParseWebhook(
   const signedPayload = `${ts}.${rawBody}`;
   const expected = crypto.createHmac("sha256", secret).update(signedPayload).digest("hex");
   try {
-    if (!crypto.timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(sig, "hex"))) return null;
+    const expBuf = Buffer.from(expected, "hex");
+    const sigBuf = Buffer.from(sig, "hex");
+    // Explicit length guard — timingSafeEqual throws on length mismatch,
+    // and a malformed `sig` (odd-length / non-hex) yields a short buffer.
+    if (expBuf.length !== sigBuf.length || expBuf.length === 0) return null;
+    if (!crypto.timingSafeEqual(expBuf, sigBuf)) return null;
   } catch {
     return null;
   }

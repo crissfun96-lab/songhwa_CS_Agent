@@ -43,6 +43,7 @@ export async function POST(request: Request) {
       );
     }
 
+    const tenantId = resolveTenantId(request);
     const handoff = await createHandoff({
       channel: parsed.channel ?? "web",
       customerName: sanitize(parsed.name),
@@ -51,6 +52,7 @@ export async function POST(request: Request) {
       urgency: parsed.urgency,
       sessionId: parsed.sessionId,
       vapiCallId: parsed.vapiCallId,
+      tenantId,
     });
 
     // Always alert staff — urgency-aware formatting
@@ -59,14 +61,14 @@ export async function POST(request: Request) {
     );
 
     emitAsync("handoff", {
-      tenantId: resolveTenantId(request),
+      tenantId,
       channel: handoff.channel,
       metadata: { ticketId: handoff.ticketId, urgency: handoff.urgency },
     });
 
     // Tailor the AI's spoken response by action type
     let agentMessage: string;
-    let etaMinutes: number = HANDOFF_ETA_MINUTES[handoff.urgency];
+    const etaMinutes: number = HANDOFF_ETA_MINUTES[handoff.urgency];
     switch (handoff.action) {
       case "transfer_now":
         agentMessage = `Connecting you to our manager now. Please hold for a moment. Ticket ${handoff.ticketId}.`;

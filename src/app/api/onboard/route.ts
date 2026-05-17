@@ -10,7 +10,9 @@ import { emitAsync } from "@/lib/metering/firestore";
 
 const OnboardSchema = z.object({
   slug: z.string().min(2).max(40).regex(/^[a-z0-9-]+$/),
-  tier: z.enum(["starter", "growth", "pro", "enterprise"]),
+  // Enterprise tier is manual-only (custom pricing, custom limits). Removing
+  // it from the public enum stops attackers self-signing into unlimited usage.
+  tier: z.enum(["starter", "growth", "pro"]),
   businessName: z.string().min(1).max(200),
   address: z.string().max(500).optional(),
   phone: z.string().min(5).max(30),

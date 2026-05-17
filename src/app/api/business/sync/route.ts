@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { fetchPlaceDetails, findPlaceId } from "@/lib/business/gbp-sync";
 import { saveBusinessInfo } from "@/lib/business/firestore";
+import { resolveTenantId } from "@/lib/tenants/resolver";
+import { verifyBearer } from "@/lib/auth-secret";
 
 // POST /api/business/sync — pulls fresh GBP data, saves to Firestore.
 // Vercel Cron hits this daily (business hours rarely change).
@@ -8,10 +10,8 @@ import { saveBusinessInfo } from "@/lib/business/firestore";
 
 export async function POST(request: Request) {
   // SECURITY (Bug H3 fix): generic 401 regardless of config state.
-  const cronSecret = process.env.CRON_SECRET?.trim();
-  const authHeader = request.headers.get("authorization");
-  const providedSecret = authHeader?.replace(/^Bearer\s+/i, "");
-  if (!cronSecret || providedSecret !== cronSecret) {
+  // Constant-time bearer compare via shared helper.
+  if (!verifyBearer(request.headers.get("authorization"), process.env.CRON_SECRET?.trim())) {
     return NextResponse.json(
       { success: false, error: "Unauthorized" },
       { status: 401 },
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     }
 
     const info = await fetchPlaceDetails(resolvedPlaceId, apiKey);
-    await saveBusinessInfo(info);
+    await saveBusinessInfo(info, resolveTenantId(request));
 
     return NextResponse.json({
       success: true,

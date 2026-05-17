@@ -37,6 +37,18 @@ export interface TenantPromptOverrides {
   languages?: string[];                      // ["en", "zh", "ms", "ko"]
   toneNotes?: string;                        // "warm and casual" / "premium and formal"
   additionalRules?: string;                  // free-text appended after the safety block
+  systemPromptTemplate?: string;             // full white-label override of BASE_PROMPT_TEMPLATE
+}
+
+export interface TenantTheme {
+  brandName?: string;                        // override `business.displayName` for UI
+  logoUrl?: string;                          // public URL — used by /admin and /business
+  faviconUrl?: string;
+  primaryColor?: string;                     // hex e.g. "#0a8a3c"
+  accentColor?: string;
+  fontFamily?: string;                       // e.g. "Inter, system-ui"
+  ctaPrimary?: string;                       // landing CTA copy ("Try the demo")
+  marketingTagline?: string;                 // sub-headline on `/business`
 }
 
 export interface TenantBusinessInfo {
@@ -59,6 +71,7 @@ export interface Tenant {
   business: TenantBusinessInfo;
   notif: TenantNotifChannels;
   promptOverrides: TenantPromptOverrides;
+  theme?: TenantTheme;
 
   // Data integrations
   googleSheetsId?: string;                   // their menu Sheet ID

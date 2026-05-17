@@ -3,8 +3,8 @@
 // This is our safety net against "missed" reservations.
 
 import { getDb } from "../firebase-admin";
-
-const DRAFTS_COLLECTION = "songhwa_reservation_drafts";
+import { tc } from "../tenants/collection";
+import { DEFAULT_TENANT_ID } from "../tenants/types";
 
 export interface ReservationDraft {
   id: string;
@@ -26,12 +26,14 @@ export interface ReservationDraft {
 export async function upsertDraft(
   sessionId: string,
   partial: Partial<Omit<ReservationDraft, "id" | "sessionId" | "createdAt" | "updatedAt" | "completeness" | "converted">>,
+  tenantId: string = DEFAULT_TENANT_ID,
 ): Promise<ReservationDraft> {
   const now = new Date().toISOString();
   const db = getDb();
+  const collection = tc(tenantId, "reservation_drafts");
 
   const existing = await db
-    .collection(DRAFTS_COLLECTION)
+    .collection(collection)
     .where("sessionId", "==", sessionId)
     .limit(1)
     .get();
@@ -93,16 +95,17 @@ export async function upsertDraft(
     createdAt: now,
     updatedAt: now,
   };
-  await db.collection(DRAFTS_COLLECTION).doc(draft.id).set(draft);
+  await db.collection(collection).doc(draft.id).set(draft);
   return draft;
 }
 
 export async function markDraftConverted(
   sessionId: string,
   reservationId: string,
+  tenantId: string = DEFAULT_TENANT_ID,
 ): Promise<void> {
   const existing = await getDb()
-    .collection(DRAFTS_COLLECTION)
+    .collection(tc(tenantId, "reservation_drafts"))
     .where("sessionId", "==", sessionId)
     .limit(1)
     .get();
@@ -119,11 +122,12 @@ export async function markDraftConverted(
 // For staff console: get all drafts from today that never converted
 export async function getUnconvertedDrafts(
   hoursBack: number = 24,
+  tenantId: string = DEFAULT_TENANT_ID,
 ): Promise<ReservationDraft[]> {
   const cutoff = new Date(Date.now() - hoursBack * 60 * 60 * 1000).toISOString();
 
   const snapshot = await getDb()
-    .collection(DRAFTS_COLLECTION)
+    .collection(tc(tenantId, "reservation_drafts"))
     .where("converted", "==", false)
     .where("updatedAt", ">=", cutoff)
     .orderBy("updatedAt", "desc")
