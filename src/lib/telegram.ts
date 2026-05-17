@@ -1,6 +1,8 @@
 import type { Reservation, ReservationModification } from "./types";
 import type { Complaint } from "./complaints/types";
 import type { CallbackRequest } from "./callbacks/types";
+import type { HandoffRequest } from "./handoff/types";
+import { HANDOFF_ETA_MINUTES } from "./handoff/types";
 
 const TELEGRAM_API = (token: string) => `https://api.telegram.org/bot${token}/sendMessage`;
 
@@ -150,6 +152,36 @@ export async function sendReservationCancelNotification(
     lines.push("", `💬 ${escapeHtml(reservation.cancelReason)}`);
   }
   lines.push("", `⏰ <i>${klTime()}</i>`);
+  await sendToStaff(lines.join("\n"));
+}
+
+// ── LIVE HANDOFF — highest priority, customer wants to talk NOW ──
+export async function sendHandoffNotification(handoff: HandoffRequest): Promise<void> {
+  const eta = HANDOFF_ETA_MINUTES[handoff.urgency];
+  const channelEmoji = { phone: "📞", wa: "💬", web: "🌐" }[handoff.channel];
+  const channelLabel = { phone: "PHONE", wa: "WHATSAPP", web: "WEB" }[handoff.channel];
+  const actionLine = {
+    transfer_now: `Customer being bridged to ${handoff.liveTransferTarget ?? "staff"} — pick up your phone.`,
+    human_mode: `WhatsApp convo is now in HUMAN MODE. Open WA → ${escapeHtml(handoff.customerPhone)} → reply directly.`,
+    callback_promised: `Call them back at <b>${escapeHtml(handoff.customerPhone)}</b> within ${eta} minutes.`,
+  }[handoff.action];
+
+  const lines = [
+    `🚨🚨 <b>HUMAN HANDOFF — ${channelLabel}</b> 🚨🚨`,
+    "",
+    `🎫 <b>Ticket:</b> <code>${escapeHtml(handoff.ticketId)}</code>`,
+    `${channelEmoji} <b>Channel:</b> ${channelLabel}`,
+    `👤 <b>Customer:</b> ${escapeHtml(handoff.customerName)}`,
+    `📞 <b>Phone:</b> ${escapeHtml(handoff.customerPhone)}`,
+    "",
+    `💬 <b>Why they need you:</b>`,
+    escapeHtml(handoff.reason),
+    "",
+    `<b>👉 ${actionLine}</b>`,
+    "",
+    `⏱ <i>Respond within ${eta} min · ${klTime()}</i>`,
+  ];
+
   await sendToStaff(lines.join("\n"));
 }
 

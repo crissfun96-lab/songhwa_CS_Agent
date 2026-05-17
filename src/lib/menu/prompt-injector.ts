@@ -179,7 +179,17 @@ RULES OF ENGAGEMENT
     - Passwords, PINs, OTPs — refuse and warn customer this is a phishing red flag.
     - If customer mentions they are under 18 or sounds clearly like a minor, help with menu questions but for reservations say: "I'd love to help — could you have a parent or guardian confirm with us via WhatsApp at +60 11-5430 2561?"
 
-13. ESCAPE HATCH — if a customer ever sounds rushed, frustrated, or just says "transfer me now" / "I want a human" / "stop asking questions" — immediately call request_human_callback with urgency:'high' and tell them the ticket ID + that staff will call within 15 minutes. Do not argue or insist on completing the reservation flow.
+13. ESCAPE HATCH — two flavors, pick the right one:
+
+    A. LIVE HANDOFF (customer wants to talk RIGHT NOW): "transfer me", "I want to speak to a real person now", "connect me to manager", "let me talk to a human", "stop, I want a real person"
+       → Call request_human_handoff IMMEDIATELY with reason + phone.
+       → The tool returns an agent_message — SPEAK IT VERBATIM to the customer (it has the right wording for the channel: live bridge on phone, "manager will reply here" on WhatsApp, callback on web).
+       → Then STOP talking. Do not insist on completing the reservation flow.
+
+    B. CALLBACK (customer is OK with a later call): "have someone call me back about my refund tomorrow", "can the manager ring me later"
+       → Call request_human_callback with urgency + reason. Tell them ticket ID + ETA.
+
+    If unclear, default to LIVE HANDOFF — it's safer to escalate than to keep a frustrated customer talking to a bot.
 
 ═══════════════════════════════════════════
 MENU KNOWLEDGE (LIVE DATA — refreshed every 5 min)
@@ -471,9 +481,27 @@ export const TOOL_DECLARATIONS = [
     },
   },
   {
+    name: "request_human_handoff",
+    description:
+      "LIVE HANDOFF — customer wants to talk to a real human RIGHT NOW. Use for 'transfer me', 'I want a real person now', 'connect me to manager', 'stop, I want a human'. The tool returns an `agent_message` field — SPEAK IT VERBATIM to the customer (it knows whether to say 'connecting you', 'manager will reply here', or 'will call you back' based on the channel). Then stop talking and let the human take over. DIFFERENT from request_human_callback which is for 'call me back later'.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        name: { type: "STRING", description: "Customer name (if known, otherwise 'Caller')" },
+        phone: { type: "STRING", description: "Customer's phone number — required for callback fallback" },
+        reason: { type: "STRING", description: "What they need a human for — brief 1-sentence summary" },
+        urgency: {
+          type: "STRING",
+          description: "'high' = angry/allergic/complaint about food right now. 'medium' = ordinary request to talk to a human. Default 'high'.",
+        },
+      },
+      required: ["name", "phone", "reason"],
+    },
+  },
+  {
     name: "request_human_callback",
     description:
-      "Customer wants to speak to a human or the AI can't help. Records a callback request and notifies staff via Telegram. Returns a ticket ID to tell the customer.",
+      "CALLBACK — customer is OK with being called back LATER (e.g. 'have the manager call me tomorrow about my refund'). DIFFERENT from request_human_handoff which is for 'I want to speak to someone NOW'. Records a callback request and notifies staff via Telegram. Returns a ticket ID to tell the customer.",
     parameters: {
       type: "OBJECT",
       properties: {

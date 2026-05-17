@@ -285,6 +285,30 @@ async function callTool(
         return JSON.stringify({ queued: false, ...j });
       }
 
+      case "request_human_handoff": {
+        // LIVE HANDOFF — customer wants to talk NOW. Channel auto-detected
+        // server-side; this dispatcher is the web-voice path so we pass "web".
+        const res = await fetch(`/api/handoff`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: String(args.name ?? "Caller"),
+            phone: String(args.phone ?? ""),
+            reason: String(args.reason ?? "Customer requested human assistance"),
+            urgency: args.urgency === "medium" ? "medium" : "high",
+            channel: "web",
+            sessionId,
+          }),
+        });
+        const j = await res.json();
+        if (j.success) {
+          // The agent_message is the EXACT line the AI should speak.
+          // Action varies by channel: transfer_now / human_mode / callback_promised.
+          return `${j.data.agent_message} (Action: ${j.data.action})`;
+        }
+        return JSON.stringify({ handoff_failed: true, ...j });
+      }
+
       default:
         return JSON.stringify({ error: `Unknown tool: ${name}` });
     }
