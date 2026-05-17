@@ -7,9 +7,10 @@ export const metadata = {
 
 const navItems = [
   { href: "/admin", label: "Dashboard" },
+  { href: "/admin/handoffs", label: "🚨 Handoffs" },
+  { href: "/admin/reservations", label: "Reservations" },
   { href: "/admin/menu", label: "Menu" },
   { href: "/admin/promos", label: "Promos" },
-  { href: "/admin/reservations", label: "Reservations" },
   { href: "/admin/complaints", label: "Complaints" },
   { href: "/admin/callbacks", label: "Callbacks" },
 ];

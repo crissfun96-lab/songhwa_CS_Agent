@@ -3,6 +3,7 @@ import type { Complaint } from "./complaints/types";
 import type { CallbackRequest } from "./callbacks/types";
 import type { HandoffRequest } from "./handoff/types";
 import { HANDOFF_ETA_MINUTES } from "./handoff/types";
+import type { Lead } from "./leads/types";
 
 const TELEGRAM_API = (token: string) => `https://api.telegram.org/bot${token}/sendMessage`;
 
@@ -212,6 +213,32 @@ export async function sendCallbackNotification(callback: CallbackRequest): Promi
     `⏳ <b>Promised by:</b> ${promiseByKl} (KL time)`,
     `⏰ <i>Requested via AI Agent at ${klTime()}</i>`,
   ];
+
+  await sendToStaff(lines.join("\n"));
+}
+
+// ── New sales lead from /business marketing page ──
+export async function sendLeadNotification(lead: Lead): Promise<void> {
+  const tierLabel = {
+    starter: "Starter (RM 299/mo)",
+    growth: "Growth (RM 899/mo)",
+    pro: "Pro (RM 2,499/mo)",
+    enterprise: "Privacy Enterprise",
+    unsure: "Unsure / needs consult",
+  }[lead.tier];
+
+  const lines = [
+    "💰 <b>NEW LEAD — Foxie AI Receptionist</b>",
+    "",
+    `🏪 <b>${escapeHtml(lead.restaurantName)}</b> · ${lead.outlets} outlet${lead.outlets > 1 ? "s" : ""}`,
+    `👤 ${escapeHtml(lead.contactName)}${lead.contactRole ? ` · ${escapeHtml(lead.contactRole)}` : ""}`,
+    `📧 ${escapeHtml(lead.email)}`,
+    `📞 ${escapeHtml(lead.phone)}`,
+    `💎 Interested in: <b>${escapeHtml(tierLabel)}</b>`,
+  ];
+  if (lead.cuisine) lines.push(`🍽 Cuisine: ${escapeHtml(lead.cuisine)}`);
+  if (lead.notes) lines.push("", `📝 <i>${escapeHtml(lead.notes)}</i>`);
+  lines.push("", `⏰ Submitted ${klTime()} — reply within 24h.`);
 
   await sendToStaff(lines.join("\n"));
 }
