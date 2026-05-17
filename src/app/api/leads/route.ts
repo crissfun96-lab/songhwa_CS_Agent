@@ -6,6 +6,7 @@ import { z } from "zod/v4";
 import { createLead } from "@/lib/leads/firestore";
 import { sendLeadNotification } from "@/lib/telegram";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { emitAsync } from "@/lib/metering/firestore";
 
 const LeadSchema = z.object({
   restaurantName: z.string().min(1).max(200),
@@ -53,6 +54,9 @@ export async function POST(request: Request) {
     sendLeadNotification(lead).catch((err) =>
       console.error("[Telegram] lead notification failed:", err),
     );
+
+    // Platform-level metering — track inbound leads for sales funnel analytics
+    emitAsync("lead", { tenantId: "platform", metadata: { tier: lead.tier, outlets: lead.outlets } });
 
     return NextResponse.json({
       success: true,

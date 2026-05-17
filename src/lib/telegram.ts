@@ -217,6 +217,12 @@ export async function sendCallbackNotification(callback: CallbackRequest): Promi
   await sendToStaff(lines.join("\n"));
 }
 
+// Raw send — for ad-hoc ops alerts (onboarding, tenant config, etc.) that don't
+// fit a typed notification helper. Caller pre-formats the HTML.
+export async function sendToStaffRaw(htmlBody: string): Promise<void> {
+  await sendToStaff(htmlBody);
+}
+
 // ── New sales lead from /business marketing page ──
 export async function sendLeadNotification(lead: Lead): Promise<void> {
   const tierLabel = {

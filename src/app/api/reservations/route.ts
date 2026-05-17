@@ -12,6 +12,8 @@ import { markDraftConverted } from "@/lib/reservations/intent";
 import { normalizePhone } from "@/lib/reservations/lifecycle";
 import { enqueueNewReservation } from "@/lib/wa-queue";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { emitAsync } from "@/lib/metering/firestore";
+import { resolveTenantId } from "@/lib/tenants/resolver";
 import type { Reservation } from "@/lib/types";
 
 const COLLECTION = "songhwa_reservations";
@@ -243,6 +245,13 @@ export async function POST(request: Request): Promise<NextResponse<CreateReserva
     enqueueNewReservation(reservation).catch((err) =>
       console.error("[WA queue] enqueue failed:", err),
     );
+
+    // Metering — billable event for tier enforcement + analytics
+    emitAsync("reservation", {
+      tenantId: resolveTenantId(request),
+      channel: "web",
+      metadata: { reservationId: reservation.id, pax: reservation.pax },
+    });
 
     return NextResponse.json({ success: true, data: reservation });
   } catch (error) {

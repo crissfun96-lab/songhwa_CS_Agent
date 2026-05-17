@@ -7,6 +7,8 @@ import { z } from "zod/v4";
 import { createHandoff, HANDOFF_ETA_MINUTES } from "@/lib/handoff/firestore";
 import { sendHandoffNotification } from "@/lib/telegram";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { emitAsync } from "@/lib/metering/firestore";
+import { resolveTenantId } from "@/lib/tenants/resolver";
 
 function sanitize(text: string): string {
   return text.replace(/[\r\n]+/g, " ").replace(/[*~`]/g, "").slice(0, 500).trim();
@@ -55,6 +57,12 @@ export async function POST(request: Request) {
     sendHandoffNotification(handoff).catch((err) =>
       console.error("[Telegram] handoff notification failed:", err),
     );
+
+    emitAsync("handoff", {
+      tenantId: resolveTenantId(request),
+      channel: handoff.channel,
+      metadata: { ticketId: handoff.ticketId, urgency: handoff.urgency },
+    });
 
     // Tailor the AI's spoken response by action type
     let agentMessage: string;

@@ -16,6 +16,10 @@
     {
       "path": "/api/cron/wa-dispatch",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/metering-rollup",
+      "schedule": "5 1 * * *"
     }
   ]
 }

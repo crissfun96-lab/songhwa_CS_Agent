@@ -1,0 +1,31 @@
+app = "foxie-pipecat"
+primary_region = "sin"
+
+[build]
+
+[env]
+  PORT = "8080"
+  APP_BASE_URL = "https://songhwa-cs-agent.vercel.app"
+  TENANT_ID = "songhwa"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+[[vm]]
+  size = "performance-1x"
+  memory = "1gb"
+  cpus = 1
+
+[checks]
+  [checks.health]
+    grace_period = "15s"
+    interval = "30s"
+    method = "get"
+    path = "/health"
+    protocol = "http"
+    timeout = "5s"
