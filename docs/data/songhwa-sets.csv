@@ -1,0 +1,9 @@
+id,code,name,pax_min,pax_max,price_rm,flags,description_en,description_zh,photo_url
+M1,M1,Korean Full Course (8-10pax),8,10,588.0,super_value,Korean Full Course (8-10pax),,
+M2,M2,Korean Full Course (4-5pax),4,5,358.0,best_seller,Korean Full Course (4-5pax),,
+M3,M3,Korean Full Course (2-3pax),2,3,168.0,,Korean Full Course (2-3pax),,
+M4,M4,Korean Royal Course Meal (2pax),2,2,128.0,couples_choice,Korean Royal Course Meal (2pax),,
+M5,M5,BBQ Beef Set,1,1,88.0,,BBQ Beef Set,,
+M6,M6,BBQ Lamb Set,1,1,65.0,,BBQ Lamb Set,,
+M7,M7,BBQ Pork Set,1,1,55.0,,BBQ Pork Set,,
+M8,M8,BBQ Marinated Chicken / Grilled Fish Set,1,1,45.0,budget,BBQ Marinated Chicken / Grilled Fish Set,,

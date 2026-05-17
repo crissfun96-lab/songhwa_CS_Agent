@@ -1,0 +1,164 @@
+id,code,name_en,name_ko,name_zh,name_bm,price_rm,category,portion,allergens,spice_level,is_signature,is_popular,description_en,description_bm,description_zh,tags
+a1,A1,BBQ Pork Belly (Samgyeopsal) - 150G,,,,35.00,bbq,150G,"pork,sesame,soy",0,TRUE,TRUE,,,,bbq;grilled
+a2,A2,BBQ Marinated Pork Ribs (Dwaeji Galbi) - 150G,,,,42.00,bbq,150G,"pork,sesame,soy",0,FALSE,FALSE,,,,bbq;grilled
+a3,A3,BBQ Marinated Chicken (Dakgalbi) - 220G (Spicy / Orginal),,,,32.00,bbq,220G,"chicken,sesame,soy",2,FALSE,TRUE,,,,bbq;cold;grilled;spicy
+a4,A4,BBQ Marinated Lamb (Yang-Galbi) - 200G,,,,45.00,bbq,200G,"sesame,soy",0,FALSE,TRUE,,,,bbq;grilled
+a5,A5,LA-Style Korean BBQ Short Ribs (LA Galbi) - 200G,,,,68.00,bbq,200G,"beef,sesame,soy",0,TRUE,TRUE,,,,bbq;grilled
+a6,A6,Premium Cut Beef Ribeye or Sirloin (Kkotsal) - 150G,,,,98.00,bbq,150G,beef,0,TRUE,TRUE,,,,bbq;grilled;premium
+a7,A7,BBQ Beef Belly (Wusamgyeop) - 150G,,,,48.00,bbq,150G,"beef,sesame,soy",0,FALSE,FALSE,,,,bbq;grilled
+a8,A8,BBQ Beef Tongue (So-Hyeo) - 120G,,,,52.00,bbq,120G,"beef,sesame,soy",0,FALSE,FALSE,,,,bbq;grilled
+aa01,AA01,Korean Steamed Rice,,,,3.00,add_on,,,0,FALSE,FALSE,,,,rice
+aa02,AA02,Korean Steamed Egg,,,,9.90,add_on,,egg,0,FALSE,FALSE,,,,
+aa03,AA03,Korean Choux Cream Puff,,,,6.00,add_on,,dairy,0,FALSE,FALSE,,,,
+aa04,AA04,Makgeolli,,,,26.00,add_on,,alcohol,0,FALSE,FALSE,,,,
+aa05,AA05,Soju,,,,21.00,add_on,,alcohol,0,FALSE,FALSE,,,,
+ad01,AD01,Extra lettuce (1plate),,,,3.00,add_on,,,0,FALSE,FALSE,,,,
+ad02,AD02,Extra Noodles,,,,5.00,add_on,,gluten,0,FALSE,FALSE,,,,noodle
+ad03,AD03,Fried Egg (1pcs),,,,3.00,add_on,,egg,0,FALSE,FALSE,,,,fried
+b1,B1,Stone Pot Braised Pork Ribs (Dwaeji-Galbi-Jjim) - Spicy (2-3 pax),,,,78.00,stew_soup,3 pax,"pork,sesame,soy",2,TRUE,TRUE,,,,cold;hot;sharing;spicy
+b10,B10,Korean Fried Chicken 8 pcs,,,,25.00,stew_soup,,chicken,0,TRUE,TRUE,,,,fried
+b2,B2,Spicy Korean Stir-Fried Pork (Jeyuk-Bokkeum),,,,38.00,stew_soup,,"pork,sesame,soy",2,FALSE,FALSE,,,,cold;fried;spicy
+b3,B3,Spicy Korean Rice Cake (Tteokbokki) - Original,,,,20.00,stew_soup,,"gluten,sesame,soy",2,FALSE,FALSE,,,,cold;rice;spicy
+b4,B4,Spicy Stir-Fried Squid (Ojingeo Bokkeum) - 2 pax,,,,38.00,stew_soup,2 pax,"seafood,shellfish",2,FALSE,FALSE,,,,cold;fried;sharing;spicy
+b5,B5,Pan-Fried Mackerel (Godeumgeo-Gui),,,,25.00,stew_soup,,fish,0,FALSE,FALSE,,,,fried
+b6,B6,Seafood Pancake (Haemul Pajeon),,,,32.00,stew_soup,,"gluten,seafood,sesame,soy",0,TRUE,TRUE,,,,
+b7,B7,Kimchi Pancake with Squid (Kimchi Pajeon),,,,28.00,stew_soup,,"gluten,seafood,sesame,shellfish,soy",2,FALSE,FALSE,,,,kimchi
+b8,B8,Korean Steamed Egg (Gyeran-Jjim),,,,12.00,stew_soup,,egg,0,FALSE,FALSE,,,,
+b9,B9,Pumpkin Porridge,,,,8.00,stew_soup,,,0,FALSE,FALSE,,,,
+c1,C1,Traditional Kimchi Soup  (Kimchi Jjigae) - Pork,,,,25.00,stew_soup,,"pork,sesame,soy",2,TRUE,TRUE,,,,kimchi;soup
+c10,C10,Spicy Beef Stew with rice (Yukgaejang),,,,28.00,stew_soup,,"beef,sesame,soy",2,FALSE,FALSE,,,,cold;rice;soup;spicy
+c11,C11,Steamed Rice (Bap),,,,5.00,stew_soup,,,0,FALSE,FALSE,,,,rice
+c12,C12,Yellow Pollock & Soft Tofu Soup with rice (Dubu Hwangtae Tang),,,,30.00,stew_soup,,"fish,sesame,soy",0,FALSE,FALSE,,,,rice;soup
+c13,C13,Beef Seaweed Soup with rice,,,,30.00,stew_soup,,"beef,seafood,sesame,soy",0,FALSE,FALSE,,,,rice;soup
+c2,C2,Soybean Paste Soup with rice (Ddenjang Jjigae),,,,25.00,stew_soup,,"sesame,soy",0,FALSE,TRUE,,,,rice;soup
+c3,C3,Spicy Soft Tofu Soup with rice(Sundubu Jjigae),,,,25.00,stew_soup,,"sesame,soy",2,TRUE,TRUE,,,,cold;rice;soup;spicy
+c4,C4,Korean Beef Stew with rice (Ttukbaegi Bulgogi),,,,32.00,stew_soup,,"beef,sesame,soy",0,FALSE,FALSE,,,,rice;soup
+c5,C5,Pork Backbone Stew with rice (Gamjatang),,,,32.00,stew_soup,,"pork,sesame,soy",2,TRUE,TRUE,,,,rice;soup
+c6,C6,Ginseng Chicken Soup (Samgyetang) - *Without rice / 2 pax,,,,48.00,stew_soup,,"chicken,sesame,soy",0,TRUE,TRUE,,,,rice;sharing;soup
+c7,C7,Stone Pot Rice (Dolsot Bibimbap) - Vegetables/Beef/Chicken,,,,25.00,stew_soup,,"beef,chicken",0,FALSE,FALSE,,,,hot;rice
+c8,C8,Kimchi Fried Rice (Kimchi Bokkeumbap),,,,20.00,stew_soup,,"sesame,soy",2,FALSE,FALSE,,,,fried;kimchi;rice
+c9,C9,Seaweed Rice Roll (Kimbap),,,,18.00,stew_soup,,seafood,0,FALSE,FALSE,,,,rice
+ctl_01_gin_sake_yuzu_maraschin,,"CTL 01. Gin, Sake, Yuzu, Maraschino (abv 21%)",,,,35.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+ctl_02_vodka_calamansi_kaffir,,"CTL 02. Vodka, Calamansi, Kaffir lime, Salted plum (abv 9%)",,,,32.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+ctl_03_irish_whiskey_yuzu_lemo,,"CTL 03. Irish whiskey, Yuzu, Lemon Bitters (abv 18%)",,,,33.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+ctl_04_flower_blossom_gin_peac,,"CTL 04. Flower Blossom, Gin, Peach, Lemon (abv 18%)",,,,33.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+ctl_05_tequila_earl_grey_coint,,"CTL 05. Tequila, Earl grey, Cointreau, Lime (abv 16%)",,,,33.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+ctl_06_white_wine_tequila_lych,,"CTL 06. White wine, Tequila, Lychee, Dill, Lime (abv 14%)",,,,32.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+ctl_07_sake_peach_yuzu_lemon_a,,"CTL 07. Sake, Peach, Yuzu , Lemon (abv 6%)",,,,30.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+ctl_08_tie_guan_yin_tea_mango,,"CTL 08. Tie Guan Yin Tea, Mango, Gin (13% ABV)",,,,34.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+ctl_09_rum_beer_mint_lime_bitt,,"CTL 09. Rum, Beer, Mint, Lime bitter (abv 14%)",,,,32.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+d1,D1,Stir-Fried Glass Noodles & Veggies (Japchae) - Pork,,,,32.00,rice_noodles,,"gluten,pork",0,FALSE,FALSE,,,,fried;noodle
+d2,D2,Korean Banquet Noodle Soup (Janchi Guksu),,,,25.00,rice_noodles,,"gluten,sesame,soy",0,FALSE,FALSE,,,,noodle;soup
+d3,D3,Korean Icy Cold Noodles (Mul Naengmyeon),,,,20.00,rice_noodles,,gluten,0,FALSE,TRUE,,,,cold;noodle
+d4,D4,Spicy Cold Buckwheat Noodles (Bibim Naengmyeon),,,,28.00,rice_noodles,,gluten,2,FALSE,TRUE,,,,cold;noodle;spicy
+d5,D5,Kimchi Ramen (Kimchi Ramyeon),,,,18.00,rice_noodles,,"gluten,sesame,soy",2,FALSE,FALSE,,,,kimchi;noodle
+d6,D6,"Seafood Ramen (Haemul Ramyeon) with prawn, squid, mussel, lala",,,,25.00,rice_noodles,,"gluten,seafood,sesame,shellfish,soy",0,FALSE,FALSE,"Prawn, squid, lala, mussel",,,noodle
+d7,D7,Kal-guksu with Lala,,,,26.00,rice_noodles,,"gluten,seafood,shellfish",0,FALSE,FALSE,,,,noodle
+eatigo_ex01_kimchi_exclusive_m,,EATIGO EX01. Kimchi Exclusive Meal for 2 pax,,,,95.00,add_on,,"sesame,soy",2,FALSE,FALSE,,,,kimchi;sharing
+eatigo_ex02_sundubu_exclusive,,EATIGO EX02. Sundubu Exclusive Meal for 2 pax,,,,95.00,add_on,,,2,FALSE,FALSE,,,,sharing
+f01,F01,Coke (Can),,,,5.00,beverage,,,0,FALSE,FALSE,,,,
+f02,F02,Sprite (Can),,,,5.00,beverage,,,0,FALSE,FALSE,,,,
+f03,F03,100 Plus (Can),,,,5.00,beverage,,,0,FALSE,FALSE,,,,
+f04,F04,Cuckoo Mild Alkaline Water -Refillable,,,,2.00,beverage,,,0,FALSE,FALSE,,,,
+f05,F05,Corn Silk Tea (Hot/Cold) - Refillable,,,,3.00,beverage,,,0,FALSE,FALSE,,,,cold;hot
+f06,F06,Makgeolli (Bottle),,,,32.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+f07,F07,Makgeolli 1 Glass with Organic Honeycomb (Per Glass),,,,15.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+f08,F08,Beer - TsingTao (Can),,,,18.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+f09,F09,Soju (Bottle),,,,30.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+f10,F10,Korean Premium Soju (Bottle) - Hwayo 17%,,,,72.00,beverage,,alcohol,0,FALSE,FALSE,,,,premium
+f11,F11,Korean Premium Soju (Bottle) - Hwayo 25%,,,,108.00,beverage,,alcohol,0,FALSE,FALSE,,,,premium
+f12,F12,Korean Premium Soju (bottle) Hwayo 41%,,,,238.00,beverage,,alcohol,0,FALSE,FALSE,,,,premium
+f13,F13,Korean Premium Soju (bottle) - Hwayo 53%,,,,488.00,beverage,,alcohol,0,FALSE,FALSE,,,,premium
+f15,F15,Beer - Heineken (can),,,,15.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+f16,F16,Beer- Crystal Light Tiger (can),,,,15.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+f18,F18,Anglia Shandy (Can),,,,8.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+f21,F21,Kronenbourg 1664 Blanc,,,,18.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+f22,F22,Edelweiss Beer,,,,18.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+f24,F24,Demisoda,,,,7.00,beverage,,,0,FALSE,FALSE,,,,
+f25,F25,Milkis Soda,,,,7.00,beverage,,dairy,0,FALSE,FALSE,,,,
+f26,F26,Beer - Tiger (Can),,,,15.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+fj01,FJ01,Belly Good [Mango | Orange | Pear | Lemon],,,,17.00,beverage,,,0,FALSE,FALSE,,,,
+fj02,FJ02,Chia Fiber [Lemongrass | Orange | Apple | Lemon | Chia Seed],,,,16.00,beverage,,,0,FALSE,FALSE,,,,
+fj03,FJ03,G-Tox [Celery | Spinach | Apple | Cucumber | Lemon],,,,16.00,beverage,,,0,FALSE,FALSE,,,,
+fj04,FJ04,Immune Star | Carrot | Orange | Apple,,,,16.00,beverage,,,0,FALSE,FALSE,,,,
+fj05,FJ05,Fruit Juice Bundle (3 Bottles),,,,45.00,beverage,,,0,FALSE,FALSE,,,,
+fp01,FP01,Father's Day Value Set (4-5pax),,,,288.00,add_on,5pax,,0,FALSE,FALSE,,,,set;sharing
+fp02,FP02,Father's Day Value Set (2-3pax),,,,188.00,add_on,3pax,,0,FALSE,FALSE,,,,set;sharing
+g01,G01,Korean Imported Classic Matcha,,,,17.00,beverage,,dairy,0,FALSE,FALSE,,,,
+g02,G02,Niko Neko Tsubaki/ Houjicha,,,,17.00,beverage,,,0,FALSE,FALSE,,,,
+g03,G03,Niko Neko Mokuren/ Genmaicha,,,,17.00,beverage,,,0,FALSE,FALSE,,,,
+h1,H1,3 Cocktails flavours,,,,88.00,beverage,,,0,FALSE,FALSE,,,,
+h2,H2,Carlsberg DRAFT Beer (10 mugs),,,,148.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+h3,H3,Connors DRAFT Beer (10 mugs),,,,168.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+h4,H4,Sapporo DRAFT Beer (10 mugs),,,,178.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+h5,H5,Mix of 10 Mugs,,,,178.00,beverage,,,0,FALSE,FALSE,,,,
+kf1,KF1,Korean Fizzy Aloe Grape,,,,12.00,beverage,,,0,FALSE,FALSE,,,,
+kf2,KF2,Korean Fizzy Lychee Aloe,,,,12.00,beverage,,,0,FALSE,FALSE,,,,
+kf3,KF3,Korean Fizzy Passion Aloe,,,,12.00,beverage,,,0,FALSE,FALSE,,,,
+ks01,KS01,Korean Churros 6 sticks with chocolate sauce,,,,17.00,appetizer_side,,gluten,0,FALSE,FALSE,,,,
+ks02,KS02,Korean Mozzarella Cheese Ball,,,,24.00,appetizer_side,,dairy,0,FALSE,FALSE,,,,
+l1,L1,LA - Style Korean BBQ Short Ribs Lunch Set,,,,58.00,rice_noodles,,"beef,sesame,soy",0,FALSE,TRUE,,,,bbq;grilled;lunch;set
+l10,L10,Spicy Stir-Fried Pork Lunch Set (Jeyuk-Bokkeum Set),,,,25.00,rice_noodles,,"pork,sesame,soy",2,FALSE,FALSE,,,,cold;fried;lunch;set;spicy
+l11,L11,Spicy Cold Buckwheat Noodles Lunch Set,,,,25.00,rice_noodles,,gluten,2,FALSE,FALSE,,,,cold;lunch;noodle;set;spicy
+l12,L12,Seafood Ramen Lunch Set,,,,25.00,rice_noodles,,"gluten,seafood,sesame,soy",0,FALSE,FALSE,,,,lunch;noodle;set
+l13,L13,Pan- Fried Mackerel Lunch Set,,,,25.00,rice_noodles,,fish,0,FALSE,FALSE,,,,fried;lunch;set
+l14,L14,Kimchi Ramen Lunch Set,,,,20.00,rice_noodles,,"gluten,sesame,soy",2,FALSE,FALSE,,,,kimchi;lunch;noodle;set
+l2,L2,BBQ Beef Belly Lunch Set,,,,45.00,rice_noodles,,"beef,sesame,soy",0,FALSE,FALSE,,,,bbq;grilled;lunch;set
+l3,L3,BBQ Marinated Pork Ribs Lunch Set,,,,38.00,rice_noodles,,"pork,sesame,soy",0,FALSE,FALSE,,,,bbq;grilled;lunch;set
+l4,L4,BBQ Marinated Lamb Lunch Set,,,,38.00,rice_noodles,,"sesame,soy",0,FALSE,FALSE,,,,bbq;grilled;lunch;set
+l5,L5,BBQ Pork Belly Lunch Set,,,,32.00,rice_noodles,,"pork,sesame,soy",0,FALSE,FALSE,,,,bbq;grilled;lunch;set
+l6,L6,BBQ Marinated Chicken Lunch Set,,,,30.00,rice_noodles,,"chicken,sesame,soy",0,FALSE,FALSE,,,,bbq;grilled;lunch;set
+l7,L7,Stir- Fried Glass Noodles Pork & Veggie Lunch Set,,,,32.00,rice_noodles,,"gluten,pork",0,FALSE,FALSE,,,,fried;lunch;noodle;set
+l8,L8,Pan Fried Marinated Beef Lunch Set (Bulgogi Set),,,,28.00,rice_noodles,,"beef,sesame,soy",0,FALSE,FALSE,,,,fried;lunch;set
+l9,L9,Stir-Fried Chicken Lunch Set (Dak Bokeum Set),,,,25.00,rice_noodles,,chicken,0,FALSE,FALSE,,,,fried;lunch;set
+puff01,PUFF01,Korean Choco Choux Cream (Icy),,,,7.50,dessert,,dairy,0,FALSE,FALSE,,,,cold
+puff02,PUFF02,Korean Matcha Choux Cream (Icy),,,,7.50,dessert,,dairy,0,FALSE,FALSE,,,,cold
+puff03,PUFF03,Korean Oreo Choux Cream (Icy),,,,7.50,dessert,,dairy,0,FALSE,FALSE,,,,cold
+puff04,PUFF04,Korean Signature Choux Cream (Icy),,,,7.50,dessert,,dairy,0,FALSE,FALSE,,,,cold;premium
+sm01,SM01,Somaek (Carlsberg Tower + 1 Bottle Soju),,,,188.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+sm02,SM02,Somaek (Sapporo Tower + 1Bottle Soju),,,,209.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+tt01,TT01,Carlsberg Tower,,,,170.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+tt02,TT02,Sapporo Tower,,,,198.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+u1,U1,[SIGNATURE/ALCOHOLIC] Baileys Chocolate Mousse,,,,23.00,dessert,,"alcohol,dairy",0,FALSE,FALSE,,,,premium
+u10,U10,Bundle 2 Cakes Combo,,,,40.00,dessert,,,0,FALSE,FALSE,,,,
+u2,U2,[ALCOHOLIC] Kahlua Tiramisu,,,,21.00,dessert,,"alcohol,dairy",0,FALSE,FALSE,,,,
+u3,U3,Blueberry Yogurt Cheesecake,,,,19.00,dessert,,dairy,0,FALSE,FALSE,,,,
+u4,U4,Lemon Poppyseed Cheesecake,,,,21.00,dessert,,dairy,0,FALSE,FALSE,,,,
+u5,U5,Mocha Mousse,,,,20.00,dessert,,dairy,0,FALSE,FALSE,,,,
+u6,U6,Blackforest Rum Mousse,,,,23.00,dessert,,"alcohol,dairy",0,FALSE,FALSE,,,,
+u7,U7,Double Fromage Hokkaido Cheesecake,,,,19.00,dessert,,dairy,0,FALSE,FALSE,,,,
+u8,U8,Matcha Double Formage Hokkaido Cheesecake,,,,20.50,dessert,,dairy,0,FALSE,FALSE,,,,
+u9,U9,Choco Double Formage Hokkaido Cheesecake,,,,20.50,dessert,,dairy,0,FALSE,FALSE,,,,
+v3,V3,Sapporo Full Pint Set 500ml (3 Pint),,,,108.00,beverage,,alcohol,0,FALSE,FALSE,,,,set
+v4,V4,Connor’s Full Pint Set 500ml (3 Pint),,,,105.00,beverage,,,0,FALSE,FALSE,,,,set
+v5,V5,Carlsberg Full Pint Set 600ml (3 Pint),,,,98.00,beverage,,alcohol,0,FALSE,FALSE,,,,set
+w01,W01,Korean Homemade Kimchi (500g),,,,28.00,appetizer_side,,"sesame,soy",2,FALSE,FALSE,,,,kimchi
+w1,W1,Royal Stout (Bottle),,,,18.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+w2,W2,Carlsberg Beer (Bottle),,,,17.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+w3,W3,Somersby Apple (Bottle),,,,20.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+w4,W4,Kronenbourg blanc 1664 (bottle),,,,21.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+wa01,WA01,Royal Stout (Bucket of Five),,,,85.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+wa02,WA02,Carlsberg Beer(Bucket of Five),,,,80.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+wa03,WA03,Somersby Apple (Bucket of Five),,,,90.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+wa04,WA04,Kronenbourg blanc 1664 (Bucket of Five),,,,95.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+y1,Y1,Carlsberg DRAFT Beer (Mug),,,,17.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+y2,Y2,Connors DRAFT Beer (mug),,,,18.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+y3,Y3,Sapporo DRAFT Beer (Mug),,,,19.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+y4,Y4,Carlsberg Full Pint 600ml (Pint),,,,35.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+y5,Y5,Connors Full Pint 500ml (Pint),,,,36.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+y6,Y6,Sapporo Full Pint 500ml (Pint),,,,38.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+z1,Z1,Seoul Morning Coffee (Alcohol),,,,18.00,beverage,,alcohol,0,FALSE,FALSE,,,,
+z2,Z2,Espresso Orange Juice,,,,15.00,beverage,,,0,FALSE,FALSE,,,,
+z3,Z3,Honeycomb Espresso,,,,18.00,beverage,,,0,FALSE,FALSE,,,,
+z4,Z4,Mocha,,,,15.00,beverage,,dairy,0,FALSE,FALSE,,,,
+z5,Z5,Americano,,,,9.00,beverage,,,0,FALSE,FALSE,,,,
+z5a,Z5A,Aerocano,,,,9.90,beverage,,,0,FALSE,FALSE,,,,
+z6,Z6,Espresso,,,,9.00,beverage,,,0,FALSE,FALSE,,,,
+z7,Z7,Latte Cafe,,,,12.00,beverage,,dairy,0,FALSE,FALSE,,,,
+z7a,Z7A,Piccolo,,,,13.00,beverage,,,0,FALSE,FALSE,,,,
+z8,Z8,Special Handmade Caramel Macchiato,,,,15.00,beverage,,,0,FALSE,FALSE,,,,
+z9,Z9,Premium Chocolate,,,,14.00,beverage,,,0,FALSE,FALSE,,,,premium
+dine_in_only_monday_kimchi_jj,,[DINE IN ONLY] Monday: Kimchi Jjigae,,,,17.90,stew_soup,,"sesame,soy",2,FALSE,FALSE,,,,kimchi;soup
+dine_in_only_thursday_sundubu,,[DINE IN ONLY] Thursday: Sundubu Jjigae,,,,17.90,stew_soup,,"sesame,soy",2,FALSE,FALSE,,,,soup
+dine_in_only_tuesday_kimchi_s,,[DINE IN ONLY] Tuesday: Kimchi/ Seafood Pancake,,,,22.90,stew_soup,,"gluten,seafood,sesame,soy",2,FALSE,FALSE,,,,kimchi
+dine_in_only_wednesday_korean,,[DINE IN ONLY] Wednesday: Korean Fried Chicken,,,,19.90,stew_soup,,chicken,0,FALSE,FALSE,,,,fried

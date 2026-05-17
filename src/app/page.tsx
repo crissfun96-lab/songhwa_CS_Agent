@@ -1,247 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 // ─── Constants ──────────────────────────────────────────────
 const MODEL = "gemini-3.1-flash-live-preview";
 const SEND_SAMPLE_RATE = 16000;
 const RECEIVE_SAMPLE_RATE = 24000;
 const BUFFER_SIZE = 4096;
-const BUILD_VERSION = "v9-firebase";
-
-const SONGHWA_SYSTEM_PROMPT = `You are the friendly AI phone assistant for Songhwa Korean Cuisine (松花韩食 / 송화한식), a premium Korean BBQ restaurant in Kuala Lumpur, Malaysia. "Songhwa" means pine blossom — inspired by Korea's national tree. Our motto: "Natural, True and Timeless Taste of Korea."
-
-Your personality: Warm, professional, helpful. Keep answers SHORT — this is a voice call.
-
-LANGUAGE RULE (CRITICAL):
-- Detect which language the customer speaks (English, Bahasa Malaysia, Mandarin Chinese, or mixed).
-- ALWAYS reply in the SAME language the customer uses.
-- If they mix languages, reply in their primary language.
-- If they switch language mid-conversation, switch with them immediately.
-
-═══════════════════════════════════════════
-RESTAURANT INFORMATION (MUST BE 100% ACCURATE)
-═══════════════════════════════════════════
-
-LOCATION:
-- Address: Level 8, Millerz Square, Unit 08-05, 357 Jalan Klang Lama (Old Klang Road), 58000 Kuala Lumpur
-- Building: Millerz Tower E, Podium Level 8
-- Nearest landmark: Millerz Square mall, Old Klang Road
-
-OPERATING HOURS:
-- Lunch: 11:30 AM – 3:00 PM (daily)
-- Dinner: 5:30 PM – 10:00 PM (daily, LAST ORDER at 9:30 PM, restaurant closes at 10:00 PM)
-- Open 7 days a week including public holidays (unless announced otherwise)
-- If customer asks about availability outside these hours, say "Sorry, we're only open for lunch from 11:30 AM to 3 PM, and dinner from 5:30 PM to 10 PM."
-
-CONTACT:
-- WhatsApp: +60 11-5430 2561
-- Instagram: @songhwa_millerz
-- Facebook: SongHwa Korean Cuisine 송화한식
-
-PARKING:
-- Millerz Square basement parking available
-- First 15 minutes: FREE
-- Daytime: RM 2 per 2 hours, then RM 2 per subsequent hour
-- Evening flat rate (after 5 PM): RM 3 per entry — very affordable for dinner
-- EV charging available in the building
-
-DIRECTIONS:
-- By car: Search "Songhwa Korean Cuisine Millerz Square" on Google Maps or Waze
-- Located along Old Klang Road (Jalan Klang Lama), one of KL's main roads
-- The restaurant is on Level 8 — take the lift from the basement or ground floor
-
-PAYMENT METHODS:
-- Cash, Visa, Mastercard
-- E-wallets: Touch n Go, GrabPay, DuitNow — all accepted
-
-HALAL STATUS (CRITICAL — answer honestly):
-- Songhwa is NON-HALAL. We serve pork dishes (BBQ Pork Belly, Pork Backbone Stew, etc.)
-- If asked "Is it halal?", say clearly: "No, Songhwa is non-halal. We do serve pork items on our menu."
-
-RATINGS:
-- Google: 4.7/5 stars (nearly 2,000 reviews)
-- Tripadvisor: 5.0/5
-- Korean idols Taemin, Epik High, and Winner have dined here
-
-ATMOSPHERE & FACILITIES:
-- Korean-style interior with warm lighting and wooden accents
-- Tabletop BBQ grills for a fun, interactive dining experience
-- 2 VIP private rooms available — perfect for celebrations, business dinners, or private gatherings. Recommend customers book VIP rooms early as they fill up fast.
-- Kids friendly — families welcome
-- Great for group dining, birthday celebrations, date nights, and gatherings
-- No maximum group size — we can accommodate large parties. For groups over 10, suggest WhatsApp to arrange seating.
-- Birthday celebration: FREE slice of cake for groups of 4 or more! Just let us know when booking.
-- No formal dress code — casual dining
-
-═══════════════════════════════════════════
-MENU (ALL PRICES IN RM — RINGGIT MALAYSIA)
-═══════════════════════════════════════════
-
-VALUE SETS (all include 3 refillable banchan/side dishes, seasonal fruit, Korean Corn Silk Tea):
-
-Individual Sets:
-- M5: BBQ Beef Set — RM88 (comes with LA Galbi; upgrade to Premium Beef Ribeye +RM23)
-- M6: BBQ Lamb Set — RM65 (marinated lamb ribs, yang-galbi style)
-- M7: BBQ Pork Belly Set — RM55 (samgyeopsal, our most popular individual set)
-- M8: BBQ Chicken/Fish Set — RM45 (great budget option)
-
-Group Full Course Meals (best value — includes BBQ meats, stew, sides, dessert):
-- M1: Full Course 8-10 pax — RM588 (SUPER VALUE for large groups)
-- M2: Full Course 4-5 pax — RM358 (BEST SELLER — most popular for families and friends)
-- M3: Full Course 2-3 pax — RM168 (perfect for small groups)
-- M4: Royal Course 2 pax — RM128 (COUPLE'S CHOICE — romantic date option)
-
-Add-ons: Rice +RM3, Steamed Egg +RM4.80, Choux Cream +RM8.80, Soju +RM21
-
-A LA CARTE BBQ:
-- BBQ Pork Belly / Samgyeopsal (150g) — RM38
-- BBQ Marinated Lamb / Yang-galbi (200g) — RM45
-- LA-style Korean BBQ Short Ribs / La Galbi (200g) — RM74
-- Premium Beef Ribeye or Sirloin / Kkotsal (150g) — RM98
-
-STEWS & SOUPS (served with rice and banchan):
-- Kimchi Soup / Kimchi Jjigae — RM26
-- Spicy Soft Tofu Soup / Sundubu Jjigae — RM26
-- Pork Backbone Stew / Gamjatang — RM32
-- Ginseng Chicken Soup / Samgyetang (serves 2) — RM50
-
-RICE & NOODLES:
-- Stone Pot Rice / Dolsot Bap — RM30
-- Stone Pot Braised Pork Ribs (2-3 pax) — RM78
-
-APPETIZERS & SIDES:
-- Seafood Pancake / Haemul Pajeon — RM32
-- Korean Fried Chicken / Dakgangjeong (8 pcs) — RM25
-
-COMPLIMENTARY:
-- Free soy pudding dessert for every dine-in customer
-- Refillable banchan (side dishes including kimchi) with every meal
-
-MENU RECOMMENDATIONS BY GROUP SIZE:
-- Solo/2 pax date: M4 Royal Course (RM128) or 2x individual sets
-- 2-3 friends: M3 Full Course (RM168) — great value
-- Family of 4-5: M2 Full Course (RM358) — our best seller
-- Big group 8-10: M1 Full Course (RM588) — super value, everything included
-- Budget option: M8 Chicken/Fish Set (RM45) or Kimchi Jjigae (RM26)
-
-DIETARY NOTES:
-- Vegetarian: Limited options. Sundubu Jjigae (tofu soup) can be requested without meat, but stock may contain seafood/anchovy base. Please inform staff of dietary needs.
-- Allergies: Please inform us in advance so our kitchen can accommodate.
-- All BBQ is cooked by the customer at the table on our charcoal/gas grills.
-
-DELIVERY:
-- Available on GrabFood and FoodPanda (search "Songhwa Korean Cuisine")
-- Dine-in recommended for the full BBQ experience
-
-DISCOUNTS:
-- Book through Eatigo app for up to 50% off a la carte items during off-peak slots (early lunch at 11:30 AM, early dinner at 5:30 PM)
-
-═══════════════════════════════════════════
-CUSTOMER MEMORY (IMPORTANT — use this to personalize)
-═══════════════════════════════════════════
-
-1. Early in the conversation, ask for the customer's FULL NAME (first name and last name).
-2. IMMEDIATELY call lookup_customer with their name to check if they're a returning customer.
-3. If found, greet them warmly! Example: "Welcome back, Mr. Tan! Great to hear from you again. Last time you had the M2 Full Course set for 4 people. Would you like to book again?"
-4. Reference their previous visits, favorite orders, or preferences when making suggestions.
-5. If NOT found, proceed normally — they're a new customer. Say something like: "Welcome to Songhwa! It's great to have a new guest."
-
-═══════════════════════════════════════════
-PHONE NUMBER HANDLING (CRITICAL — numbers are tricky in voice)
-═══════════════════════════════════════════
-
-- When the customer says their phone number, repeat it back SLOWLY, digit by digit.
-- Example: Customer says "0143609330" → You say: "Let me confirm your number: zero-one-four-three-six-zero-nine-three-three-zero. Is that correct?"
-- If they say it's wrong, ask them to say it again SLOWLY, one digit at a time.
-- Malaysian phone numbers are typically 10-11 digits starting with 01. If you have more digits, something is wrong — ask again.
-- NEVER guess or add extra digits. Only use EXACTLY what the customer confirms.
-
-═══════════════════════════════════════════
-RESERVATION RULES (CRITICAL — follow exactly)
-═══════════════════════════════════════════
-
-1. To make a reservation, you MUST collect ALL of these: customer name, phone number, date, time, number of guests.
-2. VALIDATE the time: Only accept reservations during operating hours (Lunch 11:30 AM - 3:00 PM, Dinner 5:30 PM - 10:00 PM). If customer requests a time outside hours, politely suggest the nearest available slot.
-3. ALSO ask: "Would you like to pre-order any set menu?" or "Any special requests?" — capture their menu choice and any remarks.
-4. If any of the 5 required fields is missing, ask for it.
-5. After collecting ALL details, read them back clearly, INCLUDING any menu choice or remarks. Example: "Let me confirm: [Name], phone [Phone], [Date] at [Time], [Pax] guests, you'd like the M2 Full Course set, and you mentioned a birthday celebration. Is that correct?"
-6. ONLY call create_reservation AFTER the customer confirms.
-7. If something is wrong, ask them to correct it, then read back again.
-8. After saving, say: "Your reservation has been saved! We look forward to seeing you at Songhwa, Level 8 Millerz Square."
-9. Put the menu choice and any special requests into the "remarks" field when calling create_reservation.
-
-═══════════════════════════════════════════
-GENERAL RULES
-═══════════════════════════════════════════
-
-1. Greet in the customer's detected language. Default English: "Thank you for calling Songhwa Korean Cuisine! How can I help you?"
-2. Be concise — short sentences, natural voice.
-3. Suggest a set meal if they seem undecided — recommend based on group size. For returning customers, suggest what they had before or something new.
-4. When giving directions, say: "We're at Level 8, Millerz Square on Old Klang Road. Just search Songhwa Korean Cuisine on Google Maps or Waze."
-5. If customer asks about parking, mention the RM 3 flat evening rate.
-6. NEVER make up information. If you don't know something, say "Let me check with our staff. You can also WhatsApp us at 011-5430 2561."
-7. If customer asks for the WhatsApp number, give: 011-5430 2561.
-8. If customer asks about halal status, be honest: "We are non-halal and serve pork dishes."
-9. For large groups (10+), suggest they WhatsApp to arrange seating.
-10. If customer asks about VIP rooms, say: "Yes, we have 2 private VIP rooms! They're great for celebrations or business dinners. I'd recommend booking early as they go fast. Would you like me to note a VIP room request for your reservation?"
-11. If customer mentions a birthday, say: "Happy birthday! For groups of 4 or more, we offer a complimentary slice of birthday cake. Would you like me to note this as a birthday celebration?"`;
-
-const RESERVATION_TOOL = {
-  name: "create_reservation",
-  description:
-    "Save a confirmed restaurant reservation. ONLY call this AFTER reading back all details to the customer and receiving their verbal confirmation.",
-  parameters: {
-    type: "OBJECT",
-    properties: {
-      name: {
-        type: "STRING",
-        description: "Customer's full name",
-      },
-      phone: {
-        type: "STRING",
-        description: "Customer's phone number",
-      },
-      date: {
-        type: "STRING",
-        description: "Reservation date (e.g. '2026-03-28' or 'Saturday March 28')",
-      },
-      time: {
-        type: "STRING",
-        description: "Reservation time (e.g. '7:00 PM' or '19:00')",
-      },
-      pax: {
-        type: "INTEGER",
-        description: "Number of guests",
-      },
-      menu_choice: {
-        type: "STRING",
-        description: "Menu set or dishes the customer wants to pre-order (e.g. 'M2 Full Course', 'M5 BBQ Beef Set x2', 'M7 Pork Belly + M8 Chicken')",
-      },
-      remarks: {
-        type: "STRING",
-        description: "Any special requests, dietary needs, occasion (birthday, anniversary), seating preference, or other notes from the customer",
-      },
-    },
-    required: ["name", "phone", "date", "time", "pax"],
-  },
-};
-
-const LOOKUP_CUSTOMER_TOOL = {
-  name: "lookup_customer",
-  description:
-    "Look up a customer by name to check if they are a returning customer. Call this early in the conversation after getting their name. Returns their visit history and past reservation details if found.",
-  parameters: {
-    type: "OBJECT",
-    properties: {
-      name: {
-        type: "STRING",
-        description: "Customer's full name (first and last name) to look up",
-      },
-    },
-    required: ["name"],
-  },
-};
+const BUILD_VERSION = "v10-menu-live";
 
 // ─── Types ──────────────────────────────────────────────────
 type ConnectionState = "idle" | "connecting" | "connected" | "error";
@@ -257,6 +23,13 @@ interface Reservation {
   remarks: string;
   createdAt: string;
 }
+
+interface AgentConfig {
+  systemPrompt: string;
+  tools: unknown[];
+}
+
+type ToolArgs = Record<string, unknown>;
 
 // ─── Audio Helpers ──────────────────────────────────────────
 function floatTo16BitPCM(float32Array: Float32Array): ArrayBuffer {
@@ -305,24 +78,246 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
 
 // ─── API Helpers ──────────────────────────────────────────
 async function fetchReservations(): Promise<Reservation[]> {
+  // Public GET removed for PDPA compliance.
+  // List populates from successful creates in this session only.
+  return [];
+}
+
+async function fetchAgentConfig(): Promise<AgentConfig | null> {
   try {
-    const res = await fetch("/api/reservations");
+    const res = await fetch("/api/menu/config");
     const data = await res.json();
-    return data.success ? data.data : [];
+    return data.success ? data.data : null;
   } catch {
-    return [];
+    return null;
+  }
+}
+
+// ─── Tool Dispatcher ────────────────────────────────────────
+// Each of the 11 tools declared server-side maps to one HTTP call.
+// Returns the result as a JSON string (what Gemini Live expects).
+async function callTool(
+  name: string,
+  args: ToolArgs,
+  sessionId: string,
+): Promise<string> {
+  const enc = encodeURIComponent;
+
+  try {
+    switch (name) {
+      case "lookup_customer": {
+        const n = String(args.name ?? "");
+        const res = await fetch(`/api/customers?name=${enc(n)}`);
+        const j = await res.json();
+        return j.success ? JSON.stringify(j.data) : JSON.stringify({ found: false, message: "Lookup failed" });
+      }
+
+      case "get_business_status": {
+        const res = await fetch(`/api/business/status`);
+        const j = await res.json();
+        return JSON.stringify(j.data ?? j);
+      }
+
+      case "search_menu": {
+        const q = String(args.query ?? "");
+        const res = await fetch(`/api/menu/search?q=${enc(q)}`);
+        const j = await res.json();
+        return JSON.stringify(j.data ?? { results: [] });
+      }
+
+      case "get_dish_details": {
+        const id = String(args.id ?? "");
+        const res = await fetch(`/api/menu/dish?id=${enc(id)}`);
+        const j = await res.json();
+        return JSON.stringify(j.data ?? { error: j.error });
+      }
+
+      case "get_active_promos": {
+        const res = await fetch(`/api/menu/promos`);
+        const j = await res.json();
+        return JSON.stringify(j.data ?? []);
+      }
+
+      case "check_allergens": {
+        const id = String(args.id ?? "");
+        const res = await fetch(`/api/menu/allergens?id=${enc(id)}`);
+        const j = await res.json();
+        return JSON.stringify(j.data ?? { error: j.error });
+      }
+
+      case "check_availability": {
+        const date = String(args.date ?? "");
+        const time = String(args.time ?? "");
+        const pax = String(args.pax ?? "");
+        const res = await fetch(`/api/availability?date=${enc(date)}&time=${enc(time)}&pax=${enc(pax)}`);
+        const j = await res.json();
+        return JSON.stringify(j.data ?? { error: j.error });
+      }
+
+      case "save_reservation_draft": {
+        const res = await fetch(`/api/reservations/draft`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId,
+            name: args.name ?? null,
+            phone: args.phone ?? null,
+            date: args.date ?? null,
+            time: args.time ?? null,
+            pax: args.pax ?? null,
+            menuChoice: args.menu_choice ?? null,
+            remarks: args.remarks ?? null,
+          }),
+        });
+        const j = await res.json();
+        return JSON.stringify(j.data ?? { ok: j.success });
+      }
+
+      case "find_reservation": {
+        const phone = String(args.phone ?? "");
+        const date = args.date ? `&date=${enc(String(args.date))}` : "";
+        const res = await fetch(`/api/reservations/find?phone=${enc(phone)}${date}`);
+        const j = await res.json();
+        const count = j.count ?? 0;
+        const reservations = j.data ?? [];
+        if (count === 0) {
+          return `No reservation found under phone ${phone}. Ask customer to verify phone number digit-by-digit. If still not found, the customer may have booked under a different number.`;
+        }
+        const summary = reservations.map((r: Record<string, unknown>, i: number) =>
+          `(${i + 1}) ID=${r.id} · ${r.name} · ${r.date} at ${r.time} · ${r.pax} pax · status=${r.status}${r.menu_choice ? ` · menu: ${r.menu_choice}` : ""}${r.remarks ? ` · remarks: ${r.remarks}` : ""}`
+        ).join("\n");
+        return `FOUND ${count} reservation(s) for phone ${phone}:\n${summary}\n\nConfirm WHICH one the customer wants to change by reading back date + time + pax. Use the id from above when calling update_reservation or cancel_reservation. Remember to pass phone=${phone} in those calls.`;
+      }
+
+      case "update_reservation": {
+        const id = String(args.id ?? "");
+        const payload: Record<string, unknown> = { sessionId };
+        if (args.phone) payload.phone = String(args.phone);
+        if (args.date) payload.date = String(args.date);
+        if (args.time) payload.time = String(args.time);
+        if (args.pax !== undefined) payload.pax = Number(args.pax);
+        if (args.menu_choice !== undefined) payload.menuChoice = String(args.menu_choice);
+        if (args.remarks !== undefined) payload.remarks = String(args.remarks);
+        if (args.reason) payload.reason = String(args.reason);
+
+        const res = await fetch(`/api/reservations/${enc(id)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const j = await res.json();
+        if (j.success) {
+          return `Updated — ${j.summary}. Confirm the new details with the customer.`;
+        }
+        return JSON.stringify({ updated: false, ...j });
+      }
+
+      case "cancel_reservation": {
+        const id = String(args.id ?? "");
+        const res = await fetch(`/api/reservations/${enc(id)}`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId,
+            phone: args.phone ? String(args.phone) : undefined,
+            reason: args.reason ? String(args.reason) : undefined,
+          }),
+        });
+        const j = await res.json();
+        if (j.success) {
+          return `Cancelled successfully — ${j.summary}. Tell customer their booking is cancelled.`;
+        }
+        return JSON.stringify({ cancelled: false, ...j });
+      }
+
+      case "create_reservation": {
+        const payload = {
+          sessionId,
+          name: String(args.name ?? ""),
+          phone: String(args.phone ?? ""),
+          date: String(args.date ?? ""),
+          time: String(args.time ?? ""),
+          pax: Number(args.pax ?? 0),
+          menuChoice: String(args.menu_choice ?? ""),
+          remarks: String(args.remarks ?? ""),
+        };
+        const res = await fetch(`/api/reservations`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const j = await res.json();
+        if (j.success) {
+          return `Reservation saved successfully for ${payload.name}, ${payload.pax} guests on ${payload.date} at ${payload.time}. Staff has been notified via Telegram.`;
+        }
+        // Preserve error code + alternatives so agent can handle gracefully
+        return JSON.stringify({ saved: false, ...j });
+      }
+
+      case "file_complaint": {
+        const res = await fetch(`/api/complaints`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: String(args.name ?? ""),
+            phone: String(args.phone ?? ""),
+            category: String(args.category ?? "other"),
+            description: String(args.description ?? ""),
+            severity: args.severity ? String(args.severity) : undefined,
+            visit_date: args.visit_date ? String(args.visit_date) : undefined,
+          }),
+        });
+        const j = await res.json();
+        if (j.success) {
+          return `Complaint filed. Ticket ID: ${j.data.ticket_id}. Severity: ${j.data.severity}. Response promised: ${j.data.response_eta}. Tell customer the ticket ID for reference.`;
+        }
+        return JSON.stringify({ filed: false, ...j });
+      }
+
+      case "request_human_callback": {
+        const res = await fetch(`/api/callbacks`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: String(args.name ?? ""),
+            phone: String(args.phone ?? ""),
+            reason: String(args.reason ?? ""),
+            urgency: args.urgency ? String(args.urgency) : "medium",
+          }),
+        });
+        const j = await res.json();
+        if (j.success) {
+          return `Callback requested. Ticket ID: ${j.data.ticket_id}. Staff will call back within ${j.data.eta_minutes} minutes. Tell customer the ticket ID.`;
+        }
+        return JSON.stringify({ queued: false, ...j });
+      }
+
+      default:
+        return JSON.stringify({ error: `Unknown tool: ${name}` });
+    }
+  } catch (err) {
+    return JSON.stringify({
+      error: err instanceof Error ? err.message.slice(0, 200) : "Tool call failed",
+    });
   }
 }
 
 // ─── Component ──────────────────────────────────────────────
 export default function SonghwaAgentPage() {
   const [state, setState] = useState<ConnectionState>("idle");
-  const [statusText, setStatusText] = useState("Tap the mic to start");
+  const [statusText, setStatusText] = useState("Loading agent config...");
   const [volume, setVolume] = useState(0);
   const [isAiSpeaking, setIsAiSpeaking] = useState(false);
   const [debugLog, setDebugLog] = useState<string[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [showDebug, setShowDebug] = useState(false);
+  const [agentConfig, setAgentConfig] = useState<AgentConfig | null>(null);
+  const [configError, setConfigError] = useState<string | null>(null);
+
+  // Session ID — generated once per component mount
+  const sessionIdRef = useRef<string>(
+    `sess_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+  );
 
   const wsRef = useRef<WebSocket | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -334,10 +329,22 @@ export default function SonghwaAgentPage() {
   const audioQueueRef = useRef<ArrayBuffer[]>([]);
   const isPlayingRef = useRef(false);
   const setupCompleteRef = useRef(false);
+  // Tracks the currently-playing audio source so we can stop it on barge-in
+  const currentSourceRef = useRef<AudioBufferSourceNode | null>(null);
 
-  // Load reservations from Firestore on mount
+  // Load reservations + agent config on mount
   useEffect(() => {
-    fetchReservations().then(setReservations);
+    Promise.all([fetchReservations(), fetchAgentConfig()]).then(([res, cfg]) => {
+      setReservations(res);
+      if (cfg) {
+        setAgentConfig(cfg);
+        setStatusText("Tap the mic to start");
+      } else {
+        setConfigError("Could not load agent config. Check /api/menu/config.");
+        setStatusText("Configuration error");
+        setState("error");
+      }
+    });
   }, []);
 
   const log = useCallback((msg: string) => {
@@ -348,78 +355,50 @@ export default function SonghwaAgentPage() {
     ]);
   }, []);
 
-  // ── Handle function calls from Gemini (async — calls API routes) ──
+  // ── Handle function calls from Gemini (dispatches to all 11 tools) ──
   const handleFunctionCall = useCallback(
-    async (name: string, args: Record<string, unknown>, callId: string) => {
-      log(`Function call: ${name}(${JSON.stringify(args).slice(0, 100)})`);
+    async (name: string, args: ToolArgs, callId: string) => {
+      log(`Tool: ${name}(${JSON.stringify(args).slice(0, 80)})`);
       const ws = wsRef.current;
 
-      const sendToolResponse = (id: string, result: string) => {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({
+      const result = await callTool(name, args, sessionIdRef.current);
+      log(`Tool ${name} → ${result.slice(0, 80)}`);
+
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(
+          JSON.stringify({
             toolResponse: {
-              functionResponses: [{ id, response: { result } }],
+              functionResponses: [{ id: callId, response: { result } }],
             },
-          }));
-        }
-      };
-
-      if (name === "lookup_customer") {
-        const customerName = String(args.name || "");
-        try {
-          const res = await fetch(`/api/customers?name=${encodeURIComponent(customerName)}`);
-          const json = await res.json();
-          if (json.success) {
-            log(json.data.found
-              ? `Customer found: ${json.data.name} (${json.data.visitCount} visits)`
-              : `Customer not found: ${customerName}`);
-            sendToolResponse(callId, JSON.stringify(json.data));
-          } else {
-            sendToolResponse(callId, JSON.stringify({ found: false, message: "Lookup failed" }));
-          }
-        } catch (err) {
-          log(`Customer lookup error: ${String(err).slice(0, 80)}`);
-          sendToolResponse(callId, JSON.stringify({ found: false, message: "Lookup failed" }));
-        }
-        return;
+          }),
+        );
       }
 
+      // Append newly-created reservation to local list (no public GET)
       if (name === "create_reservation") {
-        const payload = {
-          name: String(args.name || ""),
-          phone: String(args.phone || ""),
-          date: String(args.date || ""),
-          time: String(args.time || ""),
-          pax: Number(args.pax || 0),
-          menuChoice: String(args.menu_choice || ""),
-          remarks: String(args.remarks || ""),
-        };
-
         try {
-          const res = await fetch("/api/reservations", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          });
-          const json = await res.json();
-
-          if (json.success) {
-            setReservations((prev) => [json.data, ...prev]);
-            log(`Reservation saved: ${payload.name} - ${payload.date} ${payload.time}`);
-            sendToolResponse(callId,
-              `Reservation saved successfully for ${payload.name}, ${payload.pax} guests on ${payload.date} at ${payload.time}. Customer profile updated. Staff has been notified.`);
-          } else {
-            log(`Reservation save failed: ${json.error}`);
-            sendToolResponse(callId, `Failed to save reservation: ${json.error}`);
+          const parsed = typeof result === "string" ? JSON.parse(result) : null;
+          const saved = parsed == null || parsed.saved !== false;
+          if (saved && args.name && args.phone && args.date && args.time && args.pax) {
+            setReservations((prev) => [
+              {
+                id: `session_${Date.now()}`,
+                name: String(args.name),
+                phone: String(args.phone),
+                date: String(args.date),
+                time: String(args.time),
+                pax: Number(args.pax),
+                menuChoice: String(args.menu_choice ?? ""),
+                remarks: String(args.remarks ?? ""),
+                createdAt: new Date().toISOString(),
+              },
+              ...prev,
+            ]);
           }
-        } catch (err) {
-          log(`Reservation error: ${String(err).slice(0, 80)}`);
-          sendToolResponse(callId, "Failed to save reservation due to a server error.");
+        } catch {
+          // ignore parse errors — result might not be JSON (e.g., a plain string)
         }
-        return;
       }
-
-      log(`Unknown function: ${name}`);
     },
     [log],
   );
@@ -429,6 +408,7 @@ export default function SonghwaAgentPage() {
     if (!playbackContextRef.current || audioQueueRef.current.length === 0) {
       isPlayingRef.current = false;
       setIsAiSpeaking(false);
+      currentSourceRef.current = null;
       return;
     }
 
@@ -448,8 +428,25 @@ export default function SonghwaAgentPage() {
     const source = ctx.createBufferSource();
     source.buffer = audioBuffer;
     source.connect(ctx.destination);
-    source.onended = () => playNextChunk();
+    source.onended = () => {
+      if (currentSourceRef.current === source) currentSourceRef.current = null;
+      playNextChunk();
+    };
+    currentSourceRef.current = source;
     source.start();
+  }, []);
+
+  // ── Barge-in: stop AI mid-sentence when user starts speaking ──
+  const stopPlayback = useCallback(() => {
+    audioQueueRef.current = [];
+    try {
+      currentSourceRef.current?.stop();
+    } catch {
+      // already stopped
+    }
+    currentSourceRef.current = null;
+    isPlayingRef.current = false;
+    setIsAiSpeaking(false);
   }, []);
 
   const enqueueAudio = useCallback(
@@ -490,7 +487,6 @@ export default function SonghwaAgentPage() {
       });
       streamRef.current = stream;
 
-      // Reuse pre-created AudioContext from click handler (iOS gesture fix)
       let audioCtx = audioContextRef.current;
       if (!audioCtx || audioCtx.state === "closed") {
         audioCtx = new AudioContext();
@@ -512,8 +508,9 @@ export default function SonghwaAgentPage() {
       processor.onaudioprocess = (e) => {
         if (ws.readyState !== WebSocket.OPEN || !setupCompleteRef.current)
           return;
-        // Mute mic while AI is speaking to prevent echo self-interruption
-        if (isPlayingRef.current) return;
+        // Full-duplex: ALWAYS stream mic to Gemini.
+        // Echo cancellation (getUserMedia constraint) prevents TTS feedback.
+        // Gemini's VAD + serverContent.interrupted handles barge-in.
         const inputData = e.inputBuffer.getChannelData(0);
         const downsampled = downsampleBuffer(
           inputData,
@@ -537,7 +534,6 @@ export default function SonghwaAgentPage() {
       sourceNode.connect(processor);
       processor.connect(audioCtx.destination);
 
-      // Reuse pre-created playback context
       let playCtx = playbackContextRef.current;
       if (!playCtx || playCtx.state === "closed") {
         playCtx = new AudioContext({ sampleRate: RECEIVE_SAMPLE_RATE });
@@ -555,13 +551,17 @@ export default function SonghwaAgentPage() {
 
   // ── Connect ──
   const startSession = useCallback(async () => {
+    if (!agentConfig) {
+      setStatusText("Agent config not loaded. Try refreshing.");
+      return;
+    }
+
     setState("connecting");
     setStatusText("Connecting...");
     setupCompleteRef.current = false;
     setDebugLog([]);
+    log(`Session ID: ${sessionIdRef.current}`);
 
-    // Pre-create AudioContexts on user gesture (iOS Safari requirement)
-    // Must happen synchronously in the click handler, not in async callbacks
     try {
       const preAudioCtx = new AudioContext();
       await preAudioCtx.resume();
@@ -576,19 +576,29 @@ export default function SonghwaAgentPage() {
     }
 
     try {
-      log("Fetching token...");
-      const tokenRes = await fetch("/api/songhwa-token", { method: "POST" });
-      const tokenData = await tokenRes.json();
-
+      // Preferred: connect through our WS proxy so the API key stays server-side.
+      // Falls back to ephemeral token, then raw API key (legacy — fixes Bug #2 only
+      // when NEXT_PUBLIC_WS_PROXY_URL is set).
+      const proxyUrl = process.env.NEXT_PUBLIC_WS_PROXY_URL?.trim();
       let wsUrl: string;
-      if (tokenData.token) {
-        log("Got ephemeral token");
-        wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained?access_token=${tokenData.token}`;
-      } else if (tokenData.apiKey) {
-        log("Using API key session");
-        wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${tokenData.apiKey}`;
+
+      if (proxyUrl) {
+        log(`Using WS proxy: ${proxyUrl}`);
+        wsUrl = proxyUrl;
       } else {
-        throw new Error(tokenData.error || "No credentials returned");
+        log("Fetching token...");
+        const tokenRes = await fetch("/api/songhwa-token", { method: "POST" });
+        const tokenData = await tokenRes.json();
+
+        if (tokenData.token) {
+          log("Got ephemeral token");
+          wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained?access_token=${tokenData.token}`;
+        } else if (tokenData.apiKey) {
+          log("Using API key session (insecure — set NEXT_PUBLIC_WS_PROXY_URL to fix Bug #2)");
+          wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${tokenData.apiKey}`;
+        } else {
+          throw new Error(tokenData.error || "No credentials returned");
+        }
       }
 
       log("Opening WebSocket...");
@@ -596,7 +606,7 @@ export default function SonghwaAgentPage() {
       wsRef.current = ws;
 
       ws.onopen = () => {
-        log("Connected, sending setup...");
+        log(`Connected. Using live config: ${agentConfig.tools.length} tools, ${agentConfig.systemPrompt.length} char prompt`);
         const setupMsg = {
           setup: {
             model: `models/${MODEL}`,
@@ -618,15 +628,14 @@ export default function SonghwaAgentPage() {
               },
             },
             systemInstruction: {
-              parts: [{ text: SONGHWA_SYSTEM_PROMPT }],
+              parts: [{ text: agentConfig.systemPrompt }],
             },
-            tools: [{ functionDeclarations: [RESERVATION_TOOL, LOOKUP_CUSTOMER_TOOL] }],
+            tools: [{ functionDeclarations: agentConfig.tools }],
           },
         };
         ws.send(JSON.stringify(setupMsg));
-        log("Setup sent (with reservation + customer lookup tools)");
+        log(`Setup sent (tools: ${agentConfig.tools.length})`);
 
-        // Fallback: start mic after 2s if no setupComplete
         setTimeout(() => {
           if (!setupCompleteRef.current && ws.readyState === WebSocket.OPEN) {
             log("Timeout — starting mic...");
@@ -651,7 +660,6 @@ export default function SonghwaAgentPage() {
           const response = JSON.parse(text);
           const keys = Object.keys(response);
 
-          // Setup complete
           if (response.setupComplete !== undefined) {
             log("Setup complete!");
             if (!setupCompleteRef.current) {
@@ -661,25 +669,26 @@ export default function SonghwaAgentPage() {
             return;
           }
 
-          // Function calls from AI
           if (response.toolCall) {
             log("Tool call received!");
-            const functionCalls =
-              response.toolCall.functionCalls || [];
+            const functionCalls = response.toolCall.functionCalls || [];
             for (const fc of functionCalls) {
               handleFunctionCall(fc.name, fc.args || {}, fc.id || "");
             }
             return;
           }
 
-          // Audio response
+          // Barge-in: Gemini detected user speech mid-response → drop the rest
+          if (response.serverContent?.interrupted) {
+            log("Interrupted by user — stopping AI playback");
+            stopPlayback();
+          }
+
           if (response.serverContent?.modelTurn?.parts) {
             for (const part of response.serverContent.modelTurn.parts) {
-              // Audio data
               if (part.inlineData?.data) {
                 enqueueAudio(base64ToArrayBuffer(part.inlineData.data));
               }
-              // Function call inside serverContent
               if (part.functionCall) {
                 handleFunctionCall(
                   part.functionCall.name,
@@ -690,19 +699,12 @@ export default function SonghwaAgentPage() {
             }
           }
 
-          // Turn complete
-          if (response.serverContent?.turnComplete) {
-            // noop
-          }
-
-          // Errors
           if (response.error) {
             log(`Error: ${JSON.stringify(response.error).slice(0, 150)}`);
             setState("error");
             setStatusText("Server error. Tap to retry.");
           }
 
-          // Log non-audio messages (filter sessionResumptionUpdate noise)
           if (
             !keys.includes("serverContent") &&
             !keys.includes("setupComplete") &&
@@ -733,7 +735,7 @@ export default function SonghwaAgentPage() {
       setState("error");
       setStatusText(`Error: ${msg}. Tap to retry.`);
     }
-  }, [log, enqueueAudio, startMicCapture, handleFunctionCall]);
+  }, [log, enqueueAudio, startMicCapture, handleFunctionCall, agentConfig, stopPlayback]);
 
   // ── Disconnect ──
   const stopSession = useCallback(() => {
@@ -743,6 +745,12 @@ export default function SonghwaAgentPage() {
     processorRef.current = null;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
+    try {
+      currentSourceRef.current?.stop();
+    } catch {
+      // already stopped
+    }
+    currentSourceRef.current = null;
     audioContextRef.current?.close();
     audioContextRef.current = null;
     playbackContextRef.current?.close();
@@ -786,6 +794,8 @@ export default function SonghwaAgentPage() {
         : "0 0 60px rgba(34,197,94,0.5)"
       : "0 0 30px rgba(148,163,184,0.3)";
 
+  const toolCount = useMemo(() => agentConfig?.tools.length ?? 0, [agentConfig]);
+
   return (
     <div
       style={{
@@ -805,19 +815,31 @@ export default function SonghwaAgentPage() {
         <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", margin: "4px 0 0", letterSpacing: "0.1em", textTransform: "uppercase" }}>
           Songhwa Voice Agent
         </p>
+        {agentConfig && (
+          <p style={{ fontSize: 10, color: "rgba(34,197,94,0.6)", margin: "8px 0 0" }}>
+            Live menu • {toolCount} tools
+          </p>
+        )}
       </div>
+
+      {configError && (
+        <div style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: 8, padding: 12, marginBottom: 16, maxWidth: 380, fontSize: 12, color: "#fca5a5" }}>
+          {configError}
+        </div>
+      )}
 
       {/* Mic Button */}
       <button
         onClick={state === "connected" ? stopSession : startSession}
-        disabled={state === "connecting"}
+        disabled={state === "connecting" || !agentConfig}
         style={{
           width: 130, height: 130, borderRadius: "50%", border: "none",
-          background: btnBg, cursor: state === "connecting" ? "wait" : "pointer",
+          background: btnBg, cursor: state === "connecting" ? "wait" : agentConfig ? "pointer" : "not-allowed",
           display: "flex", alignItems: "center", justifyContent: "center",
           boxShadow: glow, transform: `scale(${pulseScale})`,
           transition: "transform 0.1s ease-out, box-shadow 0.2s ease",
           WebkitTapHighlightColor: "transparent",
+          opacity: agentConfig ? 1 : 0.5,
         }}
       >
         {state === "connected" ? (
@@ -845,7 +867,7 @@ export default function SonghwaAgentPage() {
         </p>
       )}
 
-      {/* ─── Reservations List ─── */}
+      {/* Reservations List */}
       <div style={{ width: "100%", maxWidth: 420, marginTop: 32 }}>
         <div style={{ marginBottom: 12 }}>
           <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>
@@ -890,7 +912,7 @@ export default function SonghwaAgentPage() {
         )}
       </div>
 
-      {/* ─── Debug Toggle ─── */}
+      {/* Debug Toggle */}
       <button
         onClick={() => setShowDebug((p) => !p)}
         style={{

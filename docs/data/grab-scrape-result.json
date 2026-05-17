@@ -1,0 +1,496 @@
+{
+  "scrapedAt": "2026-04-19T14:12:22.521Z",
+  "url": "https://food.grab.com/my/en/restaurant/songhwa-korean-cuisine-millerz-square-non-halal-delivery/1-C6KWKE4XENCZLX",
+  "imageCount": 81,
+  "images": [
+    {
+      "src": "https://food.grab.com/static/images/logo-grabfood2.svg",
+      "alt": "GrabFood Order Food Online",
+      "width": 300,
+      "height": 105
+    },
+    {
+      "src": "https://food.grab.com/static/images/logo-grabfood-white2.svg",
+      "alt": "GrabFood Order Food Online",
+      "width": 300,
+      "height": 105
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915090967282/detail/menueditor_item_990a0a4ab072401db7204908e805fc45_1770649748271549999.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : O4. Korean Matcha Milky bagel",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915084636011/detail/menueditor_item_36dad2c39ffe41d7ac49f4700372f3bb_1770649726665717730.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : P07. Wintermelon with Lemon",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915094241704/detail/menueditor_item_8157a5f9be0943f7a2bccaf2fb9a18f1_1770649781861276804.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : KS02. Korean Mozzarella Cheese Ball",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915094172126/detail/menueditor_item_a2b49ea286754a728b380882a825f155_1770649781066584832.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : KS01. Korean Churros 6 sticks with chocolate sauce",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915093954204/detail/menueditor_item_eaa029f2c41b474aab601fc139f0f117_1770649777971379798.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : U10. Bundle 2 Cakes Combo",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915093720490/detail/menueditor_item_39dd2bc3294742c0aee8b100bead72b8_1770649776658733605.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : U6. Blackforest Rum Mousse",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915093662179/detail/menueditor_item_42610a62be1046388481d3e277bdd40a_1770649775358644538.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : U1. [SIGNATURE/ALCOHOLIC] Baileys Chocolate Mousse",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915093481257/detail/menueditor_item_4858234f698f4bd49bf462bf6ee45ccf_1770649774068974505.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : U4. Lemon Poppyseed Cheesecake",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915093120452/detail/menueditor_item_c9a9b7007c544911980a39d06256c357_1770649770256081183.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : U5. Mocha Mousse",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915092882651/detail/menueditor_item_748ccd67d47b40b1b6654a574b4a8cb7_1770649767572483156.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : U3. Blueberry Yogurt Cheesecake",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915092681587/detail/menueditor_item_348099a7a7e94b31aa622507b3292305_1770649766268041405.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : PUFF03. Korean Oreo Choux Cream (Icy)",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915093392613/detail/menueditor_item_4867e854e633416ba46c3d4679debee5_1770649773366656301.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : U2.  [ALCOHOLIC] Kahlua Tiramisu",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915093233253/detail/menueditor_item_615377076e1642ffbed5e44dea16184e_1770649772664382259.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : U9. Choco Double Formage Hokkaido Cheesecake",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915093238829/detail/menueditor_item_6d53f637d1374beca41133a4ba7906a9_1770649771949692438.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : U8. Matcha Double Formage Hokkaido Cheesecake",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915092949246/detail/menueditor_item_32ae0246a3664892afa2e89356007e3f_1770649768882254874.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : U7. Double Fromage Hokkaido Cheesecake",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915092787399/detail/menueditor_item_93917581db94402aaa0ff2458b20f631_1770649766950509847.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : PUFF04. Korean Signature Choux Cream (Icy)",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915092549622/detail/menueditor_item_241df1f97ab54b99a4a1a6827282580f_1770649765571860266.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : PUFF02. Korean Matcha Choux Cream (Icy)",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915092570674/detail/menueditor_item_be36ff26552b46ab8dd54511b04aa488_1770649764865239136.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : PUFF01. Korean Choco Choux Cream (Icy)",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915092475351/detail/menueditor_item_fe3a87b506074a93b4fbb3dbd986b8cb_1770649763475801861.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : PMB01. Premium Salted Egg Chicken Floss Bagel",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915092376689/detail/menueditor_item_4ea59d681548446f93df4b40d99470ad_1770649762763123745.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : PMB02. Premium Jalapeno Smoked Duck Bagel",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915092228682/detail/menueditor_item_bae866adbaf644feb32ef6833cab2b8a_1770649761960432451.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : PMB03. Premium Apple Almond Bagel",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915092151109/detail/menueditor_item_a6bb4de9b73f48c48e156f05ebe80d96_1770649760655027195.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : PMB04. Premium Rose with Strawberry Cream Cheese Bagel",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915091991985/detail/menueditor_item_e94649daff2c4dd8a69af48bbc864f0e_1770649759158357458.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : PMB06. Premium Lemon Cream Cheese with homemade lemon curd",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915091832098/detail/menueditor_item_346b2f05fd964d8eb5555735cdf43fb1_1770649757952279232.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : PMB07. Premium Pistachio Bagel",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915091694567/detail/menueditor_item_28730704342a4f28bbf7e170cd30d884_1770649755963640915.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : PMB09. Signature Korean In house Kimchi Bagel",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915092017698/detail/menueditor_item_667a5d7e44234c03836c4000c26f2d08_1770649759868982034.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : PMB05. Premium Garlic Cream Cheese Bagel",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915091738530/detail/menueditor_item_56da464539484a3ab01c42b8ae95bc71_1770649756671473602.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : PMB08. Premium Blueberry Cream Cheese with Chocolate Bagel",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915091527274/detail/menueditor_item_ecea799c86ae41d18f03c1c412d271f2_1770649754974700577.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : PMB99. Premium Korean Scallion Cream Cheese Bagel",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915091466988/detail/menueditor_item_0ae9c53dab564dea98f972b16d4d8b4f_1770649753354764435.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : BD01. Sea Salt Cookie Brownie",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915091150882/detail/menueditor_item_f9e88480904a40c6b0dbf42616ee6f9d_1770649751471570199.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : O2. Earl Grey Lemon Yuzu Bagel",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915091011277/detail/menueditor_item_2a56b34470ea44b89c194fc7ba329c7a_1770649749873651642.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : O3. Black Sesame Mochi Bagel",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915090967282/detail/menueditor_item_990a0a4ab072401db7204908e805fc45_1770649748271549999.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : O4. Korean Matcha Milky bagel",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915090791078/detail/menueditor_item_7e74ab1249714bccb8878b003e592200_1770649747475496928.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : O5. Seoul’s Chocolate Bagel",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915090691809/detail/menueditor_item_973490fd8a6f44568ab62b9435a1476f_1770649745856636306.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : O7. Strawberry Cream Cheese Bagel",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915090496396/detail/menueditor_item_364b5442ddea4bea928ab00cb5970dd8_1770649744568717465.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : O8. Onion Cream Cheese Bagel",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915090325820/detail/menueditor_item_fa913d14342a477da69d5a017bd31aa9_1770649743669663798.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : O9. Espresso Butter Bagel",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915090341194/detail/menueditor_item_b8bb01ea0e3045aebe5645e840afc57f_1770649742864729250.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : O91. Cranberry Cream Cheese Bagel",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915090188302/detail/menueditor_item_d834099f2d4d40568ac192cc006882df_1770649741267227224.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : O93. Garlic Cream Cheese Bagel",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915091252111/detail/menueditor_item_dfcee6d0232444e6837464b85091a3fe_1770649752271571741.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : O1. Blueberry Cream Cheese Bagel",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915090725104/detail/menueditor_item_119523b8284e49ab987646bdd27ea1e8_1770649746764886716.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : O6. Charcoal Taro Floss Bagel",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915090227773/detail/menueditor_item_088db124140a4fa88b82e4640053b52b_1770649742161858494.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : O92. Ham & Cheese Bagel",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915090033085/detail/menueditor_item_723a5ba7db1f44a7b612a7208d93c1d2_1770649740365324382.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : KF3. Korean Fizzy Passion Aloe",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915085935445/detail/menueditor_item_f3e6852e170543cda0189fe006da1ded_1770649739496166467.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : KF2. Korean Fizzy Lychee Aloe",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915085913275/detail/menueditor_item_6d020622dc1f4c76b9e9709cd8cad1b2_1770649738858833446.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : KF1. Korean Fizzy Aloe Grape",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915085760117/detail/menueditor_item_1a5834fc374f481aa1b9f90154f09de1_1770649737471266077.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : M03. Niko Neko Mokuren/ Genmaicha",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915085633325/detail/menueditor_item_907b2a0caff54d789fc620dbbf512575_1770649735966578076.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : M02. Niko Neko Tsubaki/ Houjicha",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915085428124/detail/menueditor_item_0794d32c687a47929d91cb8ac1912073_1770649733867693066.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : M01. Korean Imported Classic Matcha",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915085355727/detail/menueditor_item_cc9e6db9c9f04d83803732bdcebed271_1770649731967674175.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : P01. Supreme Grape Tea",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915085124136/detail/menueditor_item_31f375f3c0a84d5896741600d5d2cf76_1770649731166569913.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : P02. Grape Tea",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915085045067/detail/menueditor_item_2492fd9973dc4652bb9f511c5d7947b6_1770649729886357754.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : P03. Watermelon Lychee Tea",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915084996585/detail/menueditor_item_8826275b1613439583ce34b605c06dac_1770649729087897684.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : P04. Strawberry Tea",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915084880278/detail/menueditor_item_7d375334e238434db888fb431073e977_1770649728369037322.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : P05. Cheezy Grape Tea",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915084746946/detail/menueditor_item_51584bb37c4d445f93862d7c3c06536a_1770649727471079492.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : P06. Cheezy Watermelon Lychee Tea",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915084636011/detail/menueditor_item_36dad2c39ffe41d7ac49f4700372f3bb_1770649726665717730.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : P07. Wintermelon with Lemon",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915084619587/detail/menueditor_item_72d2873612ab4b9584b875c02fb8a53d_1770649725375294423.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : P08. Cheezzy Strawberry Tea",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915084492295/detail/menueditor_item_b1d0fbf89ce54259aa46877788947f96_1770649723966047607.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : P09. Passion Fruit Tea",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915084372817/detail/menueditor_item_6dcd0164430c435dabfac3ee7364b858_1770649722555367828.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : P10. Hot Honeycomb Infused Jasmine Green Tea",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915084258696/detail/menueditor_item_708171a8bb4c47cca5f3c748d94a7cad_1770649721869214812.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : P11. Iced Hawthorn Drinks",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915084146609/detail/menueditor_item_4a717525e3c34b26a0a4658b13f5ff1f_1770649721268256377.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : P12. Peachy Breeze",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915084040079/detail/menueditor_item_e7b1e1e7a80c401bbac1e97071df0db0_1770649719866628839.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : P13. Lychee Blossom Fruit Tea",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915083941831/detail/menueditor_item_83af7517c41244d3a92883cf58c412dd_1770649719162508914.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : P14. Busan Guava Fruit Tea",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915083333392/detail/menueditor_item_00324686036141c79376f9d805fdafed_1770649713663713857.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : Z9. Premium Chocolate",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915083224537/detail/menueditor_item_5b2eb170a49343649073c1e747dc9228_1770649711759620436.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : Z8. Special Handmade Caramel Macchiato",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915083065443/detail/menueditor_item_615ee819c6824c8ab4d6b9a7e3932314_1770649709952911679.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : Z7A. Piccolo",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915082928643/detail/menueditor_item_99c76bd80fe74d18a3bb770e7f1d7d7b_1770649708966813111.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : Z7. Latte Cafe",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915082839991/detail/menueditor_item_2558dd11755f47feb5c1818b43438a90_1770649707452661768.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : Z6. Espresso",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915082636753/detail/menueditor_item_4c3a5af272774eeca11675823891975f_1770649706359708312.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : Z5A. Aerocano",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915082515084/detail/menueditor_item_eb41983bcb1a4f58b62032d231bb12e7_1770649704663762162.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : Z5. Americano",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915082325115/detail/menueditor_item_8e63c028d2a645b6aa9f96eaf2dc50bb_1770649703662690882.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : Z4. Mocha",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915082250111/detail/menueditor_item_bdecc51a709547718338774f8b2cf710_1770649701970882253.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : Z3. Honeycomb Espresso",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915082009340/detail/menueditor_item_e3173478254d458caffe657049ca1453_1770649700167092756.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : Z2. Espresso Orange Juice",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915081882223/detail/menueditor_item_093af872b21d455bbea7e64b50371f82_1770649697759057357.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : WAFFLE03. Chocolate Marshmallow Waffles",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915081780625/detail/menueditor_item_6e8e000f69284ce3ab6b05ee71e15539_1770649696262318046.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : WAFFLE02.  Lotus Biscoff Crumbs Waffles",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915081534143/detail/menueditor_item_f827e4f862234372a0b3e86be7e60117_1770649695469881597.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : WAFFLE01. Oreo Waffles",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915083814956/detail/menueditor_item_9f43e36d77314fd99bbcb4eaabd65a97_1770649718052875954.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : FJ05. Fruit Juice Bundle (3 Bottles)",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915083707363/detail/menueditor_item_74b2464b17164b87b264e2a86c9b3b39_1770649717291150508.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : FJ01. Belly Good [Mango | Orange | Pear | Lemon]",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915083622467/detail/menueditor_item_ca14c70aa7e4435083694e787c1fae5e_1770649715960621477.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : FJ04. Immune Star | Carrot | Orange | Apple",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915083596844/detail/menueditor_item_649acd2999974d1da703f0e73ac5fac4_1770649715258116349.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : FJ03. G-Tox [Celery | Spinach | Apple | Cucumber | Lemon]",
+      "width": 800,
+      "height": 800
+    },
+    {
+      "src": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915083476539/detail/menueditor_item_0a45dbf2efad4737ab721d2b0efc943d_1770649714475848864.webp",
+      "alt": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] : FJ02. Chia Fiber [Lemongrass | Orange | Apple | Lemon | Chia Seed]",
+      "width": 800,
+      "height": 800
+    }
+  ],
+  "menuJsonPreview": "{\"props\":{\"ssrState\":{\"securityConfig\":{\"frameAncestors\":[\"https://lkpp-portal.festiware.com\",\"https://bela-portal.festiware.com\",\"https://belapengadaan.lkpp.go.id\"],\"trustedDomains\":[\"www.googletagmanager.com\",\"www.google.com\",\"scribe-web-sdk.grab.com\",\"static.hotjar.com\",\"www.google-analytics.com\",\"connect.facebook.net\",\"www.gstatic.com\",\"script.hotjar.com\",\"*.sentry.io\",\"cdn.ravenjs.com\",\"food.grab.com\",\"www.googleadservices.com\",\"googleads.g.doubleclick.net\",\"cdn-apac.onetrust.com\",\"blob:\",\"data:\",\"*.awswaf.com\"],\"workerSrc\":[\"https://food.grab.com\",\"blob:\",\"data:\"]},\"subpathLanguage\":\"en\",\"subpathCountry\":\"MY\",\"countryConfig\":{\"appid\":{\"apple\":\"647268330\",\"google\":\"com.grabtaxi.passenger\"},\"appstore\":{\"apple\":\"https://itunes.apple.com/app/id647268330?mt=8\",\"google\":\"https://play.google.com/store/apps/details?id=com.grabtaxi.passenger\"},\"banner\":{\"images\":[]},\"footer_links\":{\"categories\":[{\"key\":\"my-4fingers\",\"path\":\"chain/4fingers-crispy-chicken-delivery\"},{\"key\":\"my-aw\",\"path\":\"chain/a-\\u0026-w-delivery\"},{\"key\":\"my-boost-juice\",\"path\":\"chain/boost-juice-bars-delivery\"},{\"key\":\"my-burger-king\",\"path\":\"chain/burger-king-delivery\"},{\"key\":\"my-din-tai-fung\",\"path\":\"chain/din-tai-fung-delivery\"},{\"key\":\"my-dominos-pizza\",\"path\":\"chain/dominos-pizza-lg-delivery\"},{\"key\":\"my-kyochon\",\"path\":\"chain/kyochon-1991-delivery\"},{\"key\":\"my-mcdonalds\",\"path\":\"chain/mcdonalds-delivery\"},{\"key\":\"my-myeongdong-topokki\",\"path\":\"chain/myeongdong-topokki-delivery\"},{\"key\":\"my-nandos\",\"path\":\"chain/nandos-delivery\"},{\"key\":\"my-papparich\",\"path\":\"chain/papparich-delivery\"},{\"key\":\"my-secret-recipe\",\"path\":\"chain/secret-recipe-delivery\"},{\"key\":\"my-starbucks\",\"path\":\"chain/starbucks-delivery\"},{\"key\":\"my-subway\",\"path\":\"chain/subway-delivery\"},{\"key\":\"my-sushi-king\",\"path\":\"chain/sushi-king-delivery\"},{\"key\":\"my-tealive\",\"path\":\"chain/tealive-delivery\"},{\"key\":\"my-texas-chicken\",\"path\":\"chain/texas-chicken-delivery\"},{\"key\":\"my-the-alley\",\"path\":\"chain/the-alley-delivery\"},{\"key\":\"my-the-chicken-rice-shop\",\"path\":\"chain/the-chicken-rice-shop-delivery\"},{\"key\":\"my-the-coffee-bean\",\"path\":\"chain/the-coffee-bean-and-tea-leaf-delivery\"}],\"favorites\":[{\"key\":\"chinese\",\"path\":\"restaurants?category=chinese-45\"},{\"key\":\"fast-food\",\"path\":\"restaurants?category=fast-food-62\"},{\"key\":\"indian\",\"path\":\"restaurants?category=indian-86\"},{\"key\":\"indonesian\",\"path\":\"restaurants?category=indonesian-87\"},{\"key\":\"italian\",\"path\":\"restaurants?category=italian-88\"},{\"key\":\"japanese\",\"path\":\"restaurants?category=japanese-89\"},{\"key\":\"korean\",\"path\":\"restaurants?category=korean-96\"},{\"key\":\"thai\",\"path\":\"restaurants?category=thai-178\"},{\"key\":\"vietnamese\",\"path\":\"restaurants?category=vietnamese-188\"}]},\"footer_new_enabled\":true,\"homepage\":{\"images\":[\"/static/page-home/ID-new-1.jpg\",\"/static/page-home/ID-new-2.jpg\",\"/static/page-home/ID-new-3.jpg\",\"/static/page-home/ID-new-4.jpg\"]},\"links\":{\"about_grab\":\"https://www.grab.com/my/about/\",\"about_grabfood\":\"https://www.grab.com/my/food/\",\"be_",
+  "htmlLength": 329415,
+  "titleTag": "Songhwa Korean Cuisine - Millerz Square [Non-Halal] ⭐ 4.1"
+}

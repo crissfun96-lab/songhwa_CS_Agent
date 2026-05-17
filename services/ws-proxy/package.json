@@ -1,0 +1,17 @@
+{
+  "name": "songhwa-ws-proxy",
+  "version": "1.0.0",
+  "description": "WebSocket proxy that holds the Gemini API key so it never reaches the browser. Fixes Bug #2 from the SaaS-readiness audit.",
+  "type": "module",
+  "main": "src/index.mjs",
+  "scripts": {
+    "start": "node src/index.mjs",
+    "dev": "node --watch src/index.mjs"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

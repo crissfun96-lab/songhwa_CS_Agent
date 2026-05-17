@@ -1,0 +1,121 @@
+{
+  "appliedAt": "2026-04-19T14:10:56.570Z",
+  "totalMatched": 19,
+  "source": "grab_scrape",
+  "updates": [
+    {
+      "id": "kf1",
+      "code": "KF1",
+      "name": "Korean Fizzy Aloe Grape",
+      "photoUrl": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915085913275/detail/menueditor_item_6d020622dc1f4c76b9e9709cd8cad1b2_1770649738858833446.webp"
+    },
+    {
+      "id": "kf2",
+      "code": "KF2",
+      "name": "Korean Fizzy Lychee Aloe",
+      "photoUrl": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915085935445/detail/menueditor_item_f3e6852e170543cda0189fe006da1ded_1770649739496166467.webp"
+    },
+    {
+      "id": "kf3",
+      "code": "KF3",
+      "name": "Korean Fizzy Passion Aloe",
+      "photoUrl": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915090033085/detail/menueditor_item_723a5ba7db1f44a7b612a7208d93c1d2_1770649740365324382.webp"
+    },
+    {
+      "id": "ks01",
+      "code": "KS01",
+      "name": "Korean Churros 6 sticks with chocolate sauce",
+      "photoUrl": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915094172126/detail/menueditor_item_a2b49ea286754a728b380882a825f155_1770649781066584832.webp"
+    },
+    {
+      "id": "ks02",
+      "code": "KS02",
+      "name": "Korean Mozzarella Cheese Ball",
+      "photoUrl": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915094241704/detail/menueditor_item_8157a5f9be0943f7a2bccaf2fb9a18f1_1770649781861276804.webp"
+    },
+    {
+      "id": "puff01",
+      "code": "PUFF01",
+      "name": "Korean Choco Choux Cream (Icy)",
+      "photoUrl": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915092570674/detail/menueditor_item_be36ff26552b46ab8dd54511b04aa488_1770649764865239136.webp"
+    },
+    {
+      "id": "puff02",
+      "code": "PUFF02",
+      "name": "Korean Matcha Choux Cream (Icy)",
+      "photoUrl": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915092549622/detail/menueditor_item_241df1f97ab54b99a4a1a6827282580f_1770649765571860266.webp"
+    },
+    {
+      "id": "puff03",
+      "code": "PUFF03",
+      "name": "Korean Oreo Choux Cream (Icy)",
+      "photoUrl": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915092681587/detail/menueditor_item_348099a7a7e94b31aa622507b3292305_1770649766268041405.webp"
+    },
+    {
+      "id": "puff04",
+      "code": "PUFF04",
+      "name": "Korean Signature Choux Cream (Icy)",
+      "photoUrl": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915092787399/detail/menueditor_item_93917581db94402aaa0ff2458b20f631_1770649766950509847.webp"
+    },
+    {
+      "id": "u1",
+      "code": "U1",
+      "name": "[SIGNATURE/ALCOHOLIC] Baileys Chocolate Mousse",
+      "photoUrl": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915093662179/detail/menueditor_item_42610a62be1046388481d3e277bdd40a_1770649775358644538.webp"
+    },
+    {
+      "id": "u10",
+      "code": "U10",
+      "name": "Bundle 2 Cakes Combo",
+      "photoUrl": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915093954204/detail/menueditor_item_eaa029f2c41b474aab601fc139f0f117_1770649777971379798.webp"
+    },
+    {
+      "id": "u2",
+      "code": "U2",
+      "name": "[ALCOHOLIC] Kahlua Tiramisu",
+      "photoUrl": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915093392613/detail/menueditor_item_4867e854e633416ba46c3d4679debee5_1770649773366656301.webp"
+    },
+    {
+      "id": "u3",
+      "code": "U3",
+      "name": "Blueberry Yogurt Cheesecake",
+      "photoUrl": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915092882651/detail/menueditor_item_748ccd67d47b40b1b6654a574b4a8cb7_1770649767572483156.webp"
+    },
+    {
+      "id": "u4",
+      "code": "U4",
+      "name": "Lemon Poppyseed Cheesecake",
+      "photoUrl": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915093481257/detail/menueditor_item_4858234f698f4bd49bf462bf6ee45ccf_1770649774068974505.webp"
+    },
+    {
+      "id": "u5",
+      "code": "U5",
+      "name": "Mocha Mousse",
+      "photoUrl": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915093120452/detail/menueditor_item_c9a9b7007c544911980a39d06256c357_1770649770256081183.webp"
+    },
+    {
+      "id": "u6",
+      "code": "U6",
+      "name": "Blackforest Rum Mousse",
+      "photoUrl": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915093720490/detail/menueditor_item_39dd2bc3294742c0aee8b100bead72b8_1770649776658733605.webp"
+    },
+    {
+      "id": "u7",
+      "code": "U7",
+      "name": "Double Fromage Hokkaido Cheesecake",
+      "photoUrl": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915092949246/detail/menueditor_item_32ae0246a3664892afa2e89356007e3f_1770649768882254874.webp"
+    },
+    {
+      "id": "u8",
+      "code": "U8",
+      "name": "Matcha Double Formage Hokkaido Cheesecake",
+      "photoUrl": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915093238829/detail/menueditor_item_6d53f637d1374beca41133a4ba7906a9_1770649771949692438.webp"
+    },
+    {
+      "id": "u9",
+      "code": "U9",
+      "name": "Choco Double Formage Hokkaido Cheesecake",
+      "photoUrl": "https://food-cms.grab.com/compressed_webp/items/MYITE2026020915093233253/detail/menueditor_item_615377076e1642ffbed5e44dea16184e_1770649772664382259.webp"
+    }
+  ]
+}

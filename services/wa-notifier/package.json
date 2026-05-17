@@ -1,0 +1,21 @@
+{
+  "name": "songhwa-wa-notifier",
+  "version": "1.0.0",
+  "description": "WhatsApp group notifier for Songhwa reservations — drains Firestore queue via Baileys",
+  "type": "module",
+  "main": "src/index.mjs",
+  "scripts": {
+    "start": "node src/index.mjs",
+    "dev": "node --watch src/index.mjs"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.18",
+    "dotenv": "^16.4.7",
+    "firebase-admin": "^13.7.0",
+    "pino": "^9.5.0",
+    "qrcode-terminal": "^0.12.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

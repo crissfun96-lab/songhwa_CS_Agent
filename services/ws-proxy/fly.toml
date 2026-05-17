@@ -1,0 +1,33 @@
+# Fly.io config for Songhwa WS Proxy.
+# Run: fly launch --copy-config --no-deploy   (first time, accepts this file)
+# Then: fly secrets set GEMINI_API_KEY=... ALLOWED_ORIGINS=https://songhwa-cs-agent.vercel.app
+# Then: fly deploy
+
+app = "songhwa-ws-proxy"
+primary_region = "sin"  # Singapore — closest to KL for low voice latency
+
+[build]
+
+[env]
+  PORT = "8080"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"  # WS needs always-on; cold start = bad UX
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
+
+[checks]
+  [checks.health]
+    grace_period = "10s"
+    interval = "30s"
+    method = "get"
+    path = "/health"
+    protocol = "http"
+    timeout = "5s"
