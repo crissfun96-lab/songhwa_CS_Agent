@@ -95,8 +95,12 @@ async function callTool(
   try {
     switch (name) {
       case "lookup_customer": {
+        // PHONE-based lookup (Chris's request 2026-05-17). Accept either
+        // `phone` (preferred) or legacy `name` for back-compat with old prompts.
+        const p = String(args.phone ?? "");
         const n = String(args.name ?? "");
-        const res = await fetch(`/api/customers?name=${enc(n)}`);
+        const param = p ? `phone=${enc(p)}` : `name=${enc(n)}`;
+        const res = await fetch(`/api/customers?${param}`);
         const j = await res.json();
         return j.success ? JSON.stringify(j.data) : JSON.stringify({ found: false, message: "Lookup failed" });
       }
@@ -432,37 +436,44 @@ export default function SonghwaAgentPage() {
         );
       }
 
-      // Append newly-created reservation to local list (no public GET)
+      // Append newly-created reservation to local list (no public GET).
+      // BUG FIX 2026-05-17: the success path returns plain text (not JSON),
+      // so the old `JSON.parse(result)` always threw — UI never updated.
+      // Now: assume success unless the result IS JSON AND has saved:false.
       if (name === "create_reservation") {
+        let saved = true;
         try {
-          const parsed = typeof result === "string" ? JSON.parse(result) : null;
-          const saved = parsed == null || parsed.saved !== false;
-          if (saved && args.name && args.phone && args.date && args.time && args.pax) {
-            const newId = `session_${Date.now()}`;
-            setReservations((prev) => [
-              {
-                id: newId,
-                name: String(args.name),
-                phone: String(args.phone),
-                date: String(args.date),
-                time: String(args.time),
-                pax: Number(args.pax),
-                menuChoice: String(args.menu_choice ?? ""),
-                remarks: String(args.remarks ?? ""),
-                createdAt: new Date().toISOString(),
-              },
-              ...prev,
-            ]);
-            // Apple N1: flash the new card + gentle haptic + hide hint
-            setFlashId(newId);
-            setShowHint(false);
-            setTimeout(() => setFlashId(null), 1800);
-            if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-              try { navigator.vibrate([10, 40, 10]); } catch { /* unsupported */ }
-            }
+          const maybeJson = JSON.parse(result);
+          if (maybeJson && typeof maybeJson === "object" && maybeJson.saved === false) {
+            saved = false;
           }
         } catch {
-          // ignore parse errors — result might not be JSON (e.g., a plain string)
+          // Not JSON → plain-text success message → keep saved=true
+        }
+
+        if (saved && args.name && args.phone && args.date && args.time && args.pax) {
+          const newId = `session_${Date.now()}`;
+          setReservations((prev) => [
+            {
+              id: newId,
+              name: String(args.name),
+              phone: String(args.phone),
+              date: String(args.date),
+              time: String(args.time),
+              pax: Number(args.pax),
+              menuChoice: String(args.menu_choice ?? ""),
+              remarks: String(args.remarks ?? ""),
+              createdAt: new Date().toISOString(),
+            },
+            ...prev,
+          ]);
+          // Apple N1: flash the new card + gentle haptic + hide hint
+          setFlashId(newId);
+          setShowHint(false);
+          setTimeout(() => setFlashId(null), 1800);
+          if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+            try { navigator.vibrate([10, 40, 10]); } catch { /* unsupported */ }
+          }
         }
       }
     },

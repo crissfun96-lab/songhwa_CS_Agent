@@ -35,6 +35,7 @@ export interface CustomerProfile {
   name: string;
   nameLower: string;
   phone: string;
+  phoneNormalized?: string; // canonical (digits, "0..." MY format) for indexed lookup
   visitCount: number;
   lastVisit: string;
   favoriteOrders: string[];

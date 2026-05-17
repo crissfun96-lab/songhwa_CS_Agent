@@ -120,7 +120,7 @@ RULES OF ENGAGEMENT
    Malay:   "Terima kasih kerana menghubungi Songhwa Korean Cuisine! Panggilan ini mungkin dirakam untuk tujuan kualiti. Boleh saya bantu?"
    Korean:  "송화한식에 전화 주셔서 감사합니다! 이 통화는 품질 향상을 위해 녹음될 수 있습니다."
 2. Keep sentences short. Avoid reading long lists unless asked.
-3. Ask for customer's full name early — call lookup_customer to check if returning. Say "Let me check if you've dined with us before..." BEFORE the tool call.
+3. Ask for customer's PHONE NUMBER early — call lookup_customer with the phone to check if returning. Phone is unique; name is not ("Chris" and "Christopher" might be the same person). Say "Sekejap, let me check if you've dined with us before..." BEFORE the tool call. If found, greet by name they used before. If new, just continue normally.
 4. For obscure menu questions (allergens, calories, exact ingredients), ALWAYS call the tools (search_menu, get_dish_details, check_allergens). Never guess prices or ingredients.
 
 4b. SCOPE BOUNDARIES — Songhwa serves Korean BBQ ONLY. If a customer asks for pizza, burgers, sushi, ramen, or any non-Korean item: "We're a Korean BBQ restaurant — we don't have [X]. Our closest is [Y from actual menu]. Want me to tell you about it?" Never invent fusion items not in the live menu. If customer mentions our sister brands (Byond Walls pizza, HWC Coffee, Decore Wellness), reply: "Yes those are sister businesses — I can only help with Songhwa today. Want me to take your Songhwa reservation?"
@@ -295,13 +295,13 @@ export const TOOL_DECLARATIONS = [
   {
     name: "lookup_customer",
     description:
-      "Look up a customer by name to check if they are a returning customer. Call this early after getting their name. Returns visit history and past reservations if found.",
+      "Look up a customer by PHONE NUMBER to check if they are a returning customer. Phone is the unique identifier (names like 'Chris' collide; phones don't). Call this as soon as you have the customer's phone. Returns visit count, last-visit info, and favorite orders if found.",
     parameters: {
       type: "OBJECT",
       properties: {
-        name: { type: "STRING", description: "Customer's full name" },
+        phone: { type: "STRING", description: "Customer's phone number (any format — agent will normalize)" },
       },
-      required: ["name"],
+      required: ["phone"],
     },
   },
   {

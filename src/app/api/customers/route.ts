@@ -1,18 +1,23 @@
 import { NextResponse } from "next/server";
-import { lookupCustomerByName } from "@/lib/customers";
+import { lookupCustomerByPhone, lookupCustomerByName } from "@/lib/customers";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 // Rate-limited customer lookup.
-// Returns partial info (no full phone number, no full order history) to limit PII exposure
-// while still supporting the agent's "are you a returning customer?" flow.
+// PREFERRED: ?phone=01154302561 — phone is the canonical identifier.
+// LEGACY: ?name=Chris — still supported for backwards compat (deprecated 2026-05-17).
+// Returns partial info (masked phone, no full order history) to limit PII exposure.
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
+  const phone = searchParams.get("phone");
   const name = searchParams.get("name");
 
-  if (!name || name.trim().length < 2) {
+  const lookupKey = phone?.trim() ?? name?.trim() ?? "";
+  const lookupType = phone ? "phone" : "name";
+
+  if (!lookupKey || lookupKey.length < 2) {
     return NextResponse.json(
-      { success: false, error: "Missing 'name' parameter (minimum 2 characters)" },
+      { success: false, error: "Missing 'phone' (preferred) or 'name' parameter" },
       { status: 400 },
     );
   }
@@ -27,20 +32,22 @@ export async function GET(request: Request) {
     );
   }
 
-  // Per-query limit (attacker with name dictionary gets throttled)
+  // Per-key limit (attacker dictionary attack throttled)
   const queryLimit = await rateLimit(
-    `customers-query:${name.toLowerCase().replace(/\s/g, "_").slice(0, 40)}`,
+    `customers-${lookupType}:${lookupKey.toLowerCase().replace(/\s/g, "_").slice(0, 40)}`,
     { limit: 10, windowSeconds: 3600 },
   );
   if (!queryLimit.allowed) {
     return NextResponse.json(
-      { success: false, error: "Too many lookups for this name." },
+      { success: false, error: `Too many lookups for this ${lookupType}.` },
       { status: 429 },
     );
   }
 
   try {
-    const customer = await lookupCustomerByName(name);
+    const customer = phone
+      ? await lookupCustomerByPhone(phone)
+      : await lookupCustomerByName(lookupKey);
 
     if (customer) {
       const recentOrders = customer.favoriteOrders.slice(-3).join(", ") || "none recorded";
@@ -59,7 +66,7 @@ export async function GET(request: Request) {
         data: {
           found: true,
           name: customer.name,
-          phoneMasked: maskedPhone,  // e.g., "0115***2561" — not full PII
+          phoneMasked: maskedPhone,
           visitCount: customer.visitCount,
           lastVisit: customer.lastVisit,
           favoriteOrders: recentOrders,
@@ -72,7 +79,7 @@ export async function GET(request: Request) {
       success: true,
       data: {
         found: false,
-        message: `No customer record found for "${name}". This is a new customer.`,
+        message: `No customer record found. This is a new customer.`,
       },
     });
   } catch (error) {
