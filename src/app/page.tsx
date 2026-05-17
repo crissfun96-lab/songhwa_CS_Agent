@@ -32,31 +32,8 @@ interface AgentConfig {
 type ToolArgs = Record<string, unknown>;
 
 // ─── Audio Helpers ──────────────────────────────────────────
-function floatTo16BitPCM(float32Array: Float32Array): ArrayBuffer {
-  const buffer = new ArrayBuffer(float32Array.length * 2);
-  const view = new DataView(buffer);
-  for (let i = 0; i < float32Array.length; i++) {
-    const s = Math.max(-1, Math.min(1, float32Array[i]));
-    view.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-  }
-  return buffer;
-}
-
-function downsampleBuffer(
-  buffer: Float32Array,
-  inputRate: number,
-  outputRate: number,
-): Float32Array {
-  if (inputRate === outputRate) return buffer;
-  const ratio = inputRate / outputRate;
-  const newLength = Math.round(buffer.length / ratio);
-  const result = new Float32Array(newLength);
-  for (let i = 0; i < newLength; i++) {
-    const index = Math.round(i * ratio);
-    result[i] = buffer[Math.min(index, buffer.length - 1)];
-  }
-  return result;
-}
+// floatTo16BitPCM + downsampleBuffer moved into the AudioWorklet
+// (public/audio-processor.worklet.js) where they run on the audio thread.
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
@@ -323,7 +300,8 @@ export default function SonghwaAgentPage() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const playbackContextRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  // AudioWorklet replaces the deprecated ScriptProcessorNode (Bug #9 fix)
+  const workletNodeRef = useRef<AudioWorkletNode | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number>(0);
   const audioQueueRef = useRef<ArrayBuffer[]>([]);
@@ -473,7 +451,7 @@ export default function SonghwaAgentPage() {
     animFrameRef.current = requestAnimationFrame(updateVolume);
   }, []);
 
-  // ── Start mic ──
+  // ── Start mic (uses modern AudioWorklet — was ScriptProcessorNode, Bug #9) ──
   const startMicCapture = useCallback(
     async (ws: WebSocket) => {
       log("Starting mic capture...");
@@ -495,30 +473,37 @@ export default function SonghwaAgentPage() {
       if (audioCtx.state === "suspended") await audioCtx.resume();
       log(`Mic ready (${audioCtx.sampleRate}Hz, state: ${audioCtx.state})`);
 
+      // Load the worklet module ONCE per AudioContext.
+      // /audio-processor.worklet.js lives in public/ (served at site root).
+      try {
+        await audioCtx.audioWorklet.addModule("/audio-processor.worklet.js");
+      } catch (err) {
+        log(`AudioWorklet load failed: ${String(err).slice(0, 80)}`);
+        throw err;
+      }
+
       const sourceNode = audioCtx.createMediaStreamSource(stream);
       const analyser = audioCtx.createAnalyser();
       analyser.fftSize = 256;
       analyserRef.current = analyser;
       sourceNode.connect(analyser);
 
-      const processor = audioCtx.createScriptProcessor(BUFFER_SIZE, 1, 1);
-      processorRef.current = processor;
+      const workletNode = new AudioWorkletNode(audioCtx, "pcm-processor", {
+        processorOptions: {
+          targetSampleRate: SEND_SAMPLE_RATE,
+          bufferSize: BUFFER_SIZE,
+        },
+      });
+      workletNodeRef.current = workletNode;
 
       let chunkCount = 0;
-      processor.onaudioprocess = (e) => {
-        if (ws.readyState !== WebSocket.OPEN || !setupCompleteRef.current)
-          return;
+      workletNode.port.onmessage = (event) => {
+        if (ws.readyState !== WebSocket.OPEN || !setupCompleteRef.current) return;
         // Full-duplex: ALWAYS stream mic to Gemini.
         // Echo cancellation (getUserMedia constraint) prevents TTS feedback.
         // Gemini's VAD + serverContent.interrupted handles barge-in.
-        const inputData = e.inputBuffer.getChannelData(0);
-        const downsampled = downsampleBuffer(
-          inputData,
-          audioCtx.sampleRate,
-          SEND_SAMPLE_RATE,
-        );
-        const pcm = floatTo16BitPCM(downsampled);
-        const base64 = arrayBufferToBase64(pcm);
+        const pcmBuffer = event.data as ArrayBuffer;
+        const base64 = arrayBufferToBase64(pcmBuffer);
         ws.send(
           JSON.stringify({
             realtimeInput: {
@@ -531,8 +516,12 @@ export default function SonghwaAgentPage() {
         if (chunkCount % 100 === 0) log(`Audio chunks: ${chunkCount}`);
       };
 
-      sourceNode.connect(processor);
-      processor.connect(audioCtx.destination);
+      // Worklet only runs when its output is connected somewhere.
+      // Route through a muted gain so it processes without playing the mic out.
+      const muteGain = audioCtx.createGain();
+      muteGain.gain.value = 0;
+      sourceNode.connect(workletNode);
+      workletNode.connect(muteGain).connect(audioCtx.destination);
 
       let playCtx = playbackContextRef.current;
       if (!playCtx || playCtx.state === "closed") {
@@ -741,8 +730,8 @@ export default function SonghwaAgentPage() {
   const stopSession = useCallback(() => {
     cancelAnimationFrame(animFrameRef.current);
     setupCompleteRef.current = false;
-    processorRef.current?.disconnect();
-    processorRef.current = null;
+    workletNodeRef.current?.disconnect();
+    workletNodeRef.current = null;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     try {

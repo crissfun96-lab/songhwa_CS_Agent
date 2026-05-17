@@ -60,11 +60,24 @@ export async function POST(request: Request) {
   }
 
   // ── Attempt 2: API key fallback with origin + rate-limit guards ──
+  // SECURITY (was Bug #2.5): the old `referer.startsWith(o)` check was bypassable
+  // via `https://songhwa-cs-agent.vercel.app.evil.com/...`. We now parse the
+  // referer as a URL and compare origins exactly.
   const origin = request.headers.get("origin");
   const referer = request.headers.get("referer");
+
+  let refererOrigin: string | null = null;
+  if (referer) {
+    try {
+      refererOrigin = new URL(referer).origin;
+    } catch {
+      refererOrigin = null;
+    }
+  }
+
   const isOriginAllowed =
     (origin && ALLOWED_ORIGINS.has(origin)) ||
-    (referer && [...ALLOWED_ORIGINS].some((o) => referer.startsWith(o)));
+    (refererOrigin !== null && ALLOWED_ORIGINS.has(refererOrigin));
 
   if (!isOriginAllowed) {
     console.warn("[songhwa-token] Blocked fallback — unknown origin:", origin, referer);

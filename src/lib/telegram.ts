@@ -4,7 +4,9 @@ import type { CallbackRequest } from "./callbacks/types";
 
 const TELEGRAM_API = (token: string) => `https://api.telegram.org/bot${token}/sendMessage`;
 
-// ── Shared sender ─────────────────────────────────────────────
+// ── Shared sender with exponential-backoff retry (was Bug #7) ──
+// Attempts 3 times with 250ms, 1s, 4s backoff. After 3 failures, logs and
+// gives up. Total worst-case latency ~5.5s (caller is fire-and-forget so OK).
 async function sendToStaff(text: string): Promise<void> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_STAFF_CHAT_ID;
@@ -14,24 +16,44 @@ async function sendToStaff(text: string): Promise<void> {
     return;
   }
 
-  try {
-    const res = await fetch(TELEGRAM_API(token), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        parse_mode: "HTML",
-      }),
-    });
+  const backoffsMs = [250, 1000, 4000];
 
-    if (!res.ok) {
-      const err = await res.text();
-      console.error("[Telegram] Send failed:", err.slice(0, 200));
+  for (let attempt = 0; attempt < backoffsMs.length; attempt++) {
+    try {
+      const res = await fetch(TELEGRAM_API(token), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
+      });
+
+      if (res.ok) return;
+
+      // 429 = rate limited (honor Retry-After if present), 4xx = client error
+      // (no point retrying), 5xx = retry
+      if (res.status >= 400 && res.status < 500 && res.status !== 429) {
+        const err = await res.text();
+        console.error(`[Telegram] Permanent ${res.status} (no retry):`, err.slice(0, 200));
+        return;
+      }
+
+      const errBody = await res.text().catch(() => "");
+      console.warn(
+        `[Telegram] Attempt ${attempt + 1}/${backoffsMs.length} failed (${res.status}):`,
+        errBody.slice(0, 150),
+      );
+    } catch (error) {
+      console.warn(
+        `[Telegram] Attempt ${attempt + 1}/${backoffsMs.length} network error:`,
+        error instanceof Error ? error.message : String(error),
+      );
     }
-  } catch (error) {
-    console.error("[Telegram] Network error:", error);
+
+    if (attempt < backoffsMs.length - 1) {
+      await new Promise((r) => setTimeout(r, backoffsMs[attempt]));
+    }
   }
+
+  console.error("[Telegram] All retry attempts exhausted — staff alert dropped");
 }
 
 // ── Notifications ─────────────────────────────────────────────

@@ -45,7 +45,14 @@
 - **Problem:** When Google's ephemeral token endpoint 404s, raw `GEMINI_API_KEY` is returned to the browser. Visible in Network tab. Origin + rate limit are defense-in-depth but insufficient — anyone can scrape it.
 - **Fix:** Server-side WebSocket proxy (Vercel Edge or Mac-mini service).
 - **Effort:** 2 hours (code) + Chris must deploy proxy
-- [ ] Pending — code scaffolded
+- [x] Code complete ✅ `services/ws-proxy/` (Node.js + ws + Fly.io config) — Chris deploys
+
+### 🔴 HIGH — Bug #2.5: Referer prefix-match bypass (BONUS from security agent)
+- **File:** `src/app/api/songhwa-token/route.ts:67`
+- **Problem:** `referer.startsWith("https://songhwa-cs-agent.vercel.app")` matched `https://songhwa-cs-agent.vercel.app.evil.com/` — attacker gets the API key. Confirmed exploitable by security agent.
+- **Fix:** Parse referer as URL, compare `.origin` exactly.
+- **Effort:** 10 min
+- [x] Fixed 2026-05-17 ✅ `new URL(referer).origin === allowed`
 
 ### 🔴 HIGH — Bug #3: Baileys WhatsApp = commercial ban risk
 - **Files:** `services/wa-notifier/`, `src/lib/wa-queue.ts`
@@ -76,26 +83,30 @@
 ### 🟢 LOW — Bug #7: Telegram has no retry/DLQ
 - **File:** `src/lib/telegram.ts:9-35`
 - **Problem:** Send failures only logged. Brief Telegram outage = silent missed alerts.
-- **Fix:** Use Firestore queue pattern (mirror what WhatsApp does).
+- **Fix:** Exponential backoff retry (250ms, 1s, 4s) before giving up. Honors 4xx vs 5xx distinction.
 - **Effort:** 2 hours
+- [x] Fixed 2026-05-17 ✅ 3-attempt retry
 
 ### 🟢 LOW — Bug #8: Full-scan customer lookup
 - **File:** `src/lib/customers.ts:8`
 - **Problem:** Lookup-by-name does full collection scan. Breaks at ~5k customers.
-- **Fix:** Add `where("nameLower", "==", needle)` + Firestore index.
+- **Fix:** Indexed `where("nameLower", "==", needle).limit(1)` first; capped 500-doc scan as partial-match fallback.
 - **Effort:** 1 hour
+- [x] Fixed 2026-05-17 ✅ O(1) common case
 
 ### 🟢 LOW — Bug #9: ScriptProcessorNode deprecated
 - **File:** `src/app/page.tsx:484`
 - **Problem:** Deprecated Web Audio API. Works today, breaks in future Chrome/Edge.
-- **Fix:** Migrate to `AudioWorkletNode`.
+- **Fix:** Migrate to `AudioWorkletNode`. Worklet at `public/audio-processor.worklet.js` runs in audio thread (better latency, future-proof).
 - **Effort:** 3 hours
+- [x] Fixed 2026-05-17 ✅ AudioWorklet + muted gain routing
 
 ### 🟢 LOW — Bug #10: No alerting on wa-queue dead items
 - **File:** `services/wa-notifier/`
 - **Problem:** Sustained Baileys outage produces silent failures. No alerts.
-- **Fix:** Cron to scan `wa_notification_queue` for `attempts >= 3 && sentAt == null` → Telegram alert.
+- **Fix:** Daily cron at 9am hits `/api/admin/wa-queue-health` → if attempts ≥ 3 and sentAt is null → Telegram alert to staff with diagnostic hints.
 - **Effort:** 1 hour
+- [x] Fixed 2026-05-17 ✅ `src/app/api/admin/wa-queue-health/route.ts` + `vercel.json` cron entry
 
 ---
 

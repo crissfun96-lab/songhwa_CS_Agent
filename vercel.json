@@ -8,6 +8,10 @@
     {
       "path": "/api/business/sync",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/admin/wa-queue-health",
+      "schedule": "0 9 * * *"
     }
   ]
 }

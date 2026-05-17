@@ -3,17 +3,30 @@ import type { CustomerProfile } from "./types";
 
 const COLLECTION = "songhwa_customers";
 
+// Fix Bug #8: was full collection scan on every voice tool call.
+// Now uses indexed `where("nameLower", "==", needle)` for the common case.
+// Falls back to a scan ONLY when no exact match exists (rare — for partial match).
 export async function lookupCustomerByName(name: string): Promise<CustomerProfile | null> {
   const needle = name.toLowerCase().trim();
-  const snapshot = await getDb().collection(COLLECTION).get();
+  if (!needle) return null;
 
-  const customers = snapshot.docs.map((doc) => doc.data() as CustomerProfile);
+  // Indexed exact match — O(1)
+  const exactSnap = await getDb()
+    .collection(COLLECTION)
+    .where("nameLower", "==", needle)
+    .limit(1)
+    .get();
+  if (!exactSnap.empty) {
+    return exactSnap.docs[0].data() as CustomerProfile;
+  }
 
-  // Exact match first
-  const exact = customers.find((c) => c.nameLower === needle);
-  if (exact) return exact;
-
-  // Partial match fallback
+  // Partial match fallback — O(N) but capped to avoid running across millions
+  const PARTIAL_SCAN_LIMIT = 500;
+  const fallbackSnap = await getDb()
+    .collection(COLLECTION)
+    .limit(PARTIAL_SCAN_LIMIT)
+    .get();
+  const customers = fallbackSnap.docs.map((doc) => doc.data() as CustomerProfile);
   const partial = customers.find(
     (c) => c.nameLower.includes(needle) || needle.includes(c.nameLower),
   );
