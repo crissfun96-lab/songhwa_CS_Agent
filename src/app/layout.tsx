@@ -13,10 +13,15 @@ export const metadata: Metadata = {
   description:
     "Talk to Songhwa Korean Cuisine (松花韩식) — book a table, ask about the menu, in English · 中文 · Bahasa · 한국어. Open 365 days at Millerz Square, KL.",
   applicationName: "Songhwa",
+  manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "Songhwa",
+  },
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/icon.svg", sizes: "180x180" }],
   },
   formatDetection: {
     telephone: false, // we render phone numbers ourselves, no auto-link

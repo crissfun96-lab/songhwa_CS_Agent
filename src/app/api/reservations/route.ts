@@ -49,11 +49,13 @@ const CreateReservationSchema = z.object({
 
 // Sanitize user-provided text before it flows into WA/Telegram messages.
 // Prevents prompt injection attacks via remarks that impersonate system text.
+// LOW-3 fix: preserve `_` so real names like "Anne_Marie" or "O_Brien" survive.
+// Only strip Telegram-MarkdownV2 + WA-markdown control chars + collapse newlines.
 function sanitizeForNotification(text: string): string {
   return text
-    .replace(/[\r\n]+/g, " ")    // strip newlines (prevents fake staff messages)
-    .replace(/[*_~`]/g, "")       // strip WA markdown (prevents fake bold/italic)
-    .slice(0, 500)                // cap length
+    .replace(/[\r\n]+/g, " ")   // strip newlines (prevents fake staff messages)
+    .replace(/[*~`]/g, "")       // strip WA/Telegram markdown chars (NOT _ — keep names intact)
+    .slice(0, 500)               // cap length
     .trim();
 }
 

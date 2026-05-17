@@ -1,0 +1,20 @@
+{
+  "name": "Songhwa Korean Cuisine",
+  "short_name": "Songhwa",
+  "description": "AI voice assistant for Songhwa Korean Cuisine — book a table, browse menu in 4 languages.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1a1a2e",
+  "theme_color": "#0f3460",
+  "lang": "en-MY",
+  "categories": ["food", "lifestyle", "utilities"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

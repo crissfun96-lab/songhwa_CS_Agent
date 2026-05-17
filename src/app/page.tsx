@@ -7,7 +7,19 @@ const MODEL = "gemini-3.1-flash-live-preview";
 const SEND_SAMPLE_RATE = 16000;
 const RECEIVE_SAMPLE_RATE = 24000;
 const BUFFER_SIZE = 4096;
-const BUILD_VERSION = "v10-menu-live";
+const BUILD_VERSION = "v11-market-ready";
+
+// Apple N4: First-visit hint card — cycle these example utterances every 4s.
+// Mix of 4 languages + 3 use cases so first-timers know what's possible.
+const HINT_EXAMPLES = [
+  { lang: "English", text: '"Book a table for 4 this Saturday at 7pm"' },
+  { lang: "中文", text: '"我要订位星期六晚上七点四个人"' },
+  { lang: "Bahasa", text: '"Tempah meja 4 orang malam Sabtu jam 7"' },
+  { lang: "English", text: '"What\'s good for a date night?"' },
+  { lang: "中文", text: '"现在还开吗？"' },
+  { lang: "English", text: '"Are you halal?"' },
+  { lang: "Bahasa", text: '"Boleh tunjuk menu set?"' },
+];
 
 // ─── Types ──────────────────────────────────────────────────
 type ConnectionState = "idle" | "connecting" | "connected" | "error";
@@ -294,6 +306,16 @@ export default function SonghwaAgentPage() {
   const [debugEnabled, setDebugEnabled] = useState(false);
   // Apple Blocker B4: respect prefers-reduced-motion
   const [reducedMotion, setReducedMotion] = useState(false);
+  // Apple N4: first-visit hint card with cycling example utterances
+  const [showHint, setShowHint] = useState(false);
+  const [hintIndex, setHintIndex] = useState(0);
+  // Live "Open now" badge driven by /api/business/status
+  const [businessStatus, setBusinessStatus] = useState<{
+    isOpen: boolean;
+    statusText: string;
+  } | null>(null);
+  // Apple N1: flash newly-saved reservation card
+  const [flashId, setFlashId] = useState<string | null>(null);
 
   // Session ID — generated once per component mount
   const sessionIdRef = useRef<string>(
@@ -316,6 +338,7 @@ export default function SonghwaAgentPage() {
 
   // Apple Blocker B5: debug gating via ?debug=1
   // Apple Blocker B4: prefers-reduced-motion media query
+  // Apple N4: first-visit detection for hint card
   useEffect(() => {
     if (typeof window !== "undefined") {
       setDebugEnabled(new URLSearchParams(window.location.search).get("debug") === "1");
@@ -323,8 +346,48 @@ export default function SonghwaAgentPage() {
       const update = () => setReducedMotion(mq.matches);
       update();
       mq.addEventListener("change", update);
+      // Hint shown for first 3 visits (localStorage counter)
+      try {
+        const visits = Number(window.localStorage.getItem("songhwa_visits") ?? "0");
+        setShowHint(visits < 3);
+        window.localStorage.setItem("songhwa_visits", String(visits + 1));
+      } catch {
+        setShowHint(true); // fail open
+      }
       return () => mq.removeEventListener("change", update);
     }
+  }, []);
+
+  // Apple N4: rotate the hint examples every 4 seconds
+  useEffect(() => {
+    if (!showHint) return;
+    const id = setInterval(() => setHintIndex((i) => (i + 1) % HINT_EXAMPLES.length), 4000);
+    return () => clearInterval(id);
+  }, [showHint]);
+
+  // Fetch the live business status for the "Open now" badge in the header
+  useEffect(() => {
+    let cancelled = false;
+    const fetchStatus = async () => {
+      try {
+        const res = await fetch("/api/business/status");
+        const j = await res.json();
+        if (!cancelled && j.success && j.data) {
+          setBusinessStatus({
+            isOpen: Boolean(j.data.is_open),
+            statusText: String(j.data.status_text ?? ""),
+          });
+        }
+      } catch {
+        // silent — header just won't show the badge
+      }
+    };
+    fetchStatus();
+    const id = setInterval(fetchStatus, 5 * 60 * 1000); // refresh every 5 min
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
   }, []);
 
   // Load reservations + agent config on mount
@@ -375,9 +438,10 @@ export default function SonghwaAgentPage() {
           const parsed = typeof result === "string" ? JSON.parse(result) : null;
           const saved = parsed == null || parsed.saved !== false;
           if (saved && args.name && args.phone && args.date && args.time && args.pax) {
+            const newId = `session_${Date.now()}`;
             setReservations((prev) => [
               {
-                id: `session_${Date.now()}`,
+                id: newId,
                 name: String(args.name),
                 phone: String(args.phone),
                 date: String(args.date),
@@ -389,6 +453,13 @@ export default function SonghwaAgentPage() {
               },
               ...prev,
             ]);
+            // Apple N1: flash the new card + gentle haptic + hide hint
+            setFlashId(newId);
+            setShowHint(false);
+            setTimeout(() => setFlashId(null), 1800);
+            if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+              try { navigator.vibrate([10, 40, 10]); } catch { /* unsupported */ }
+            }
           }
         } catch {
           // ignore parse errors — result might not be JSON (e.g., a plain string)
@@ -863,8 +934,19 @@ export default function SonghwaAgentPage() {
         >
           📞 +60 11-5430 2561
         </a>
+        {businessStatus && (
+          <p style={{
+            fontSize: 12,
+            color: businessStatus.isOpen ? "#22c55e" : "rgba(239,68,68,0.85)",
+            margin: "8px 0 0",
+            fontWeight: 500,
+          }}>
+            <span aria-hidden="true">{businessStatus.isOpen ? "🟢" : "🔴"}</span>{" "}
+            {businessStatus.statusText}
+          </p>
+        )}
         {agentConfig && (
-          <p style={{ fontSize: 11, color: "rgba(34,197,94,0.75)", margin: "10px 0 0", letterSpacing: "0.04em" }}>
+          <p style={{ fontSize: 11, color: "rgba(34,197,94,0.75)", margin: "8px 0 0", letterSpacing: "0.04em" }}>
             Speaks English · 中文 · Bahasa · 한국어
           </p>
         )}
@@ -920,13 +1002,37 @@ export default function SonghwaAgentPage() {
         )}
       </button>
 
-      <p style={{ marginTop: 20, fontSize: 15, color: "rgba(255,255,255,0.8)", textAlign: "center" }}>
+      <p style={{ marginTop: 20, fontSize: 15, color: "rgba(255,255,255,0.85)", textAlign: "center", maxWidth: 360, lineHeight: 1.4 }}>
         {statusText}
       </p>
       {isAiSpeaking && (
-        <p style={{ fontSize: 12, color: "#f59e0b", animation: "pulse 1.5s ease-in-out infinite" }}>
-          Agent speaking...
+        <p style={{ fontSize: 12, color: "#f59e0b", animation: reducedMotion ? "none" : "pulse 1.5s ease-in-out infinite" }}>
+          Agent speaking…
         </p>
+      )}
+
+      {/* Apple N4: first-visit hint card — cycles example utterances */}
+      {showHint && state !== "connected" && agentConfig && (
+        <div
+          aria-live="polite"
+          style={{
+            marginTop: 16,
+            maxWidth: 360,
+            width: "100%",
+            background: "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(255,255,255,0.10)",
+            borderRadius: 12,
+            padding: "12px 16px",
+            textAlign: "center",
+          }}
+        >
+          <p style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", margin: 0, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+            Try saying ({HINT_EXAMPLES[hintIndex].lang})
+          </p>
+          <p style={{ fontSize: 14, color: "rgba(255,255,255,0.92)", margin: "6px 0 0", fontStyle: "italic" }}>
+            {HINT_EXAMPLES[hintIndex].text}
+          </p>
+        </div>
       )}
 
       {/* Reservations from THIS session only (PDPA-safe — Apple Blocker B6 wording fix) */}
@@ -952,10 +1058,16 @@ export default function SonghwaAgentPage() {
               <div
                 key={r.id}
                 style={{
-                  background: "rgba(255,255,255,0.08)",
+                  background: flashId === r.id
+                    ? "rgba(34,197,94,0.20)"
+                    : "rgba(255,255,255,0.08)",
                   borderRadius: 10,
                   padding: "14px 16px",
                   borderLeft: "3px solid #22c55e",
+                  transition: reducedMotion ? "none" : "background-color 0.6s ease-out",
+                  animation: flashId === r.id && !reducedMotion
+                    ? "slideInUp 320ms cubic-bezier(0.2, 0.8, 0.2, 1)"
+                    : undefined,
                 }}
               >
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
@@ -1017,6 +1129,10 @@ export default function SonghwaAgentPage() {
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        @keyframes slideInUp {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
         @media (prefers-reduced-motion: reduce) {
           *, *::before, *::after {
             animation-duration: 0.01ms !important;
