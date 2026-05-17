@@ -62,7 +62,15 @@ type CreateReservationResponse =
   | {
       success: false;
       error: string;
-      code: "duplicate" | "fully_booked" | "outside_hours" | "invalid_time" | "validation" | "server_error";
+      code:
+        | "duplicate"
+        | "fully_booked"
+        | "outside_hours"
+        | "invalid_time"
+        | "validation"
+        | "rate_limited"
+        | "forbidden"
+        | "server_error";
       alternatives?: Array<{ date: string; time: string; note: string }>;
       existingReservation?: Reservation;
     };
@@ -72,7 +80,7 @@ export async function POST(request: Request): Promise<NextResponse<CreateReserva
     // ── 0. CSRF + rate limit (Bug C3 + H4 fix) ─────────────────
     if (!isOriginAllowed(request)) {
       return NextResponse.json(
-        { success: false, error: "Origin not allowed", code: "validation" },
+        { success: false, error: "Origin not allowed", code: "forbidden" },
         { status: 403 },
       );
     }
@@ -81,7 +89,7 @@ export async function POST(request: Request): Promise<NextResponse<CreateReserva
     const ipLimit = await rateLimit(`reservation-ip:${ip}`, { limit: 10, windowSeconds: 3600 });
     if (!ipLimit.allowed) {
       return NextResponse.json(
-        { success: false, error: "Too many reservation attempts. Please wait.", code: "validation" },
+        { success: false, error: "Too many reservation attempts. Please wait.", code: "rate_limited" },
         { status: 429, headers: { "Retry-After": String(ipLimit.resetInSeconds) } },
       );
     }
@@ -93,12 +101,14 @@ export async function POST(request: Request): Promise<NextResponse<CreateReserva
     const phoneLimit = await rateLimit(`reservation-phone:${parsed.phone}`, { limit: 5, windowSeconds: 3600 });
     if (!phoneLimit.allowed) {
       return NextResponse.json(
-        { success: false, error: "Too many reservations from this phone today. Call us directly.", code: "validation" },
+        { success: false, error: "Too many reservations from this phone today. Call us directly.", code: "rate_limited" },
         { status: 429, headers: { "Retry-After": String(phoneLimit.resetInSeconds) } },
       );
     }
 
-    // ── 1. Idempotency: detect duplicate booking attempt ───────
+    // ── 1. Idempotency (pre-flight) ────────────────────────────
+    // This catches user-level dupes serially. The HIGH-1 TOCTOU race is
+    // closed by re-checking duplicate INSIDE the transaction below.
     const existing = await findRecentDuplicate(
       parsed.phone,
       parsed.date,
@@ -162,12 +172,43 @@ export async function POST(request: Request): Promise<NextResponse<CreateReserva
     };
 
     // Second: atomic write with re-check inside transaction.
-    // Reuses isCapacityExceeded (same bucket/cap logic as checkAvailability above)
-    // to close the TOCTOU window without inconsistent math.
+    // - Re-verifies capacity (closes TOCTOU on the capacity check)
+    // - Re-verifies idempotency (closes TOCTOU on the duplicate check — HIGH-1 fix)
+    // Both checks use the same dayReservations snapshot — single Firestore read.
+    const normalizedNewTime = (() => {
+      try {
+        return new Date(reservation.createdAt).getTime();
+      } catch {
+        return Date.now();
+      }
+    })();
+    const idempotencyCutoff = normalizedNewTime - 60 * 60 * 1000;
+    const normalizedPhone = reservation.phoneNormalized;
+    const newTimeBucket = parsed.time;
+
     await db.runTransaction(async (tx) => {
       const dayQuery = db.collection(COLLECTION).where("date", "==", parsed.date);
       const daySnap = await tx.get(dayQuery);
       const dayReservations = daySnap.docs.map((d) => d.data() as Reservation);
+
+      // HIGH-1 fix: idempotency inside the transaction — catches concurrent
+      // identical POSTs that all passed the pre-flight `findRecentDuplicate`.
+      const concurrentDup = dayReservations.find((r) => {
+        if (r.status === "cancelled") return false;
+        const samePhone =
+          r.phone === parsed.phone ||
+          (r.phoneNormalized && r.phoneNormalized === normalizedPhone);
+        if (!samePhone) return false;
+        if (r.time !== newTimeBucket) return false;
+        try {
+          return new Date(r.createdAt).getTime() > idempotencyCutoff;
+        } catch {
+          return false;
+        }
+      });
+      if (concurrentDup) {
+        throw new Error("concurrent_duplicate");
+      }
 
       if (isCapacityExceeded(dayReservations, parsed.time, parsed.pax)) {
         throw new Error("race_detected");
@@ -220,6 +261,16 @@ export async function POST(request: Request): Promise<NextResponse<CreateReserva
           error: "That slot just filled up. Please try another time.",
           code: "fully_booked",
           alternatives: [],
+        },
+        { status: 409 },
+      );
+    }
+    if (error instanceof Error && error.message === "concurrent_duplicate") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "A reservation with these details was just saved. Check your last booking.",
+          code: "duplicate",
         },
         { status: 409 },
       );
