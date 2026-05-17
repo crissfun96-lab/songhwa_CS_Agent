@@ -7,25 +7,19 @@ import { saveBusinessInfo } from "@/lib/business/firestore";
 // Protected by CRON_SECRET.
 
 export async function POST(request: Request) {
-  const cronSecret = process.env.CRON_SECRET;
-  const placeId = process.env.SONGHWA_PLACE_ID;
-  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
-
-  if (!cronSecret) {
-    return NextResponse.json(
-      { success: false, error: "CRON_SECRET not configured" },
-      { status: 500 },
-    );
-  }
-
+  // SECURITY (Bug H3 fix): generic 401 regardless of config state.
+  const cronSecret = process.env.CRON_SECRET?.trim();
   const authHeader = request.headers.get("authorization");
   const providedSecret = authHeader?.replace(/^Bearer\s+/i, "");
-  if (providedSecret !== cronSecret) {
+  if (!cronSecret || providedSecret !== cronSecret) {
     return NextResponse.json(
       { success: false, error: "Unauthorized" },
       { status: 401 },
     );
   }
+
+  const placeId = process.env.SONGHWA_PLACE_ID;
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
 
   // Graceful skip: if Places API not yet enabled, hardcoded fallback in prompt is used.
   // Chris can enable Places API + set env vars later without blocking cron.

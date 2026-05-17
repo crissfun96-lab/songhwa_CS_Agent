@@ -16,6 +16,7 @@ import crypto from "node:crypto";
 const INBOUND_COLLECTION = "wa_inbound_messages";
 
 // ── GET: webhook verification (Meta hits this once when you save the URL) ──
+// SECURITY: generic 403 regardless of config state (no information leak)
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const mode = url.searchParams.get("hub.mode");
@@ -23,11 +24,8 @@ export async function GET(request: Request) {
   const challenge = url.searchParams.get("hub.challenge");
 
   const expectedToken = process.env.META_WHATSAPP_VERIFY_TOKEN?.trim();
-  if (!expectedToken) {
-    return new NextResponse("verify_token_not_configured", { status: 500 });
-  }
 
-  if (mode === "subscribe" && token === expectedToken && challenge) {
+  if (expectedToken && mode === "subscribe" && token === expectedToken && challenge) {
     return new NextResponse(challenge, { status: 200 });
   }
   return new NextResponse("forbidden", { status: 403 });
@@ -65,13 +63,14 @@ interface MetaWebhookPayload {
   }>;
 }
 
-// Verify the X-Hub-Signature-256 header to confirm payload came from Meta
+// Verify the X-Hub-Signature-256 header to confirm payload came from Meta.
+// SECURITY (Bug C4 fix): no dev-mode bypass. If the secret isn't configured,
+// the webhook MUST refuse — accepting unsigned payloads in any environment
+// would let an attacker stuff wa_inbound_messages (Firestore cost) and poison
+// downstream agent logic.
 function verifySignature(rawBody: string, signature: string | null): boolean {
   const appSecret = process.env.META_WHATSAPP_APP_SECRET?.trim();
-  if (!appSecret) {
-    console.warn("[WA webhook] META_WHATSAPP_APP_SECRET not set — skipping signature verification");
-    return true; // dev mode only
-  }
+  if (!appSecret) return false; // not configured → refuse all signed POSTs
   if (!signature || !signature.startsWith("sha256=")) return false;
   const expected = crypto.createHmac("sha256", appSecret).update(rawBody).digest("hex");
   const provided = signature.slice("sha256=".length);

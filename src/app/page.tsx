@@ -282,7 +282,7 @@ async function callTool(
 // ─── Component ──────────────────────────────────────────────
 export default function SonghwaAgentPage() {
   const [state, setState] = useState<ConnectionState>("idle");
-  const [statusText, setStatusText] = useState("Loading agent config...");
+  const [statusText, setStatusText] = useState("Connecting to Songhwa…");
   const [volume, setVolume] = useState(0);
   const [isAiSpeaking, setIsAiSpeaking] = useState(false);
   const [debugLog, setDebugLog] = useState<string[]>([]);
@@ -290,6 +290,10 @@ export default function SonghwaAgentPage() {
   const [showDebug, setShowDebug] = useState(false);
   const [agentConfig, setAgentConfig] = useState<AgentConfig | null>(null);
   const [configError, setConfigError] = useState<string | null>(null);
+  // Apple Blocker B5: debug UI only visible with ?debug=1 in URL
+  const [debugEnabled, setDebugEnabled] = useState(false);
+  // Apple Blocker B4: respect prefers-reduced-motion
+  const [reducedMotion, setReducedMotion] = useState(false);
 
   // Session ID — generated once per component mount
   const sessionIdRef = useRef<string>(
@@ -310,16 +314,29 @@ export default function SonghwaAgentPage() {
   // Tracks the currently-playing audio source so we can stop it on barge-in
   const currentSourceRef = useRef<AudioBufferSourceNode | null>(null);
 
+  // Apple Blocker B5: debug gating via ?debug=1
+  // Apple Blocker B4: prefers-reduced-motion media query
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setDebugEnabled(new URLSearchParams(window.location.search).get("debug") === "1");
+      const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+      const update = () => setReducedMotion(mq.matches);
+      update();
+      mq.addEventListener("change", update);
+      return () => mq.removeEventListener("change", update);
+    }
+  }, []);
+
   // Load reservations + agent config on mount
   useEffect(() => {
     Promise.all([fetchReservations(), fetchAgentConfig()]).then(([res, cfg]) => {
       setReservations(res);
       if (cfg) {
         setAgentConfig(cfg);
-        setStatusText("Tap the mic to start");
+        setStatusText("Tap the mic. Ask anything — book a table, the menu, our hours.");
       } else {
-        setConfigError("Could not load agent config. Check /api/menu/config.");
-        setStatusText("Configuration error");
+        setConfigError("Could not load agent. Please refresh.");
+        setStatusText("Connection issue — please refresh");
         setState("error");
       }
     });
@@ -455,14 +472,34 @@ export default function SonghwaAgentPage() {
   const startMicCapture = useCallback(
     async (ws: WebSocket) => {
       log("Starting mic capture...");
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
+      // Apple Blocker B3: surface permission denial clearly — iOS Safari
+      // does NOT re-prompt after first deny, so user must visit Settings.
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            channelCount: 1,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+      } catch (err) {
+        const name = (err as DOMException)?.name ?? "Unknown";
+        if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+          setState("error");
+          setStatusText(
+            "Songhwa needs microphone access. Open Settings → Safari → Microphone to allow, then come back.",
+          );
+        } else if (name === "NotFoundError") {
+          setState("error");
+          setStatusText("No microphone found on this device.");
+        } else {
+          setState("error");
+          setStatusText(`Mic error: ${name}. Tap to retry.`);
+        }
+        throw err;
+      }
       streamRef.current = stream;
 
       let audioCtx = audioContextRef.current;
@@ -765,7 +802,12 @@ export default function SonghwaAgentPage() {
   }, []);
 
   // ── Render ──
-  const pulseScale = state === "connected" ? 1 + volume * 2 : 1;
+  // Apple Blocker B4: freeze pulse animation under prefers-reduced-motion
+  const pulseScale = reducedMotion
+    ? 1
+    : state === "connected"
+      ? 1 + Math.min(volume * 1.5, 0.4) // cap at 1.4x (was unbounded → overlap with cards)
+      : 1;
   const btnBg =
     state === "connected"
       ? isAiSpeaking
@@ -798,18 +840,35 @@ export default function SonghwaAgentPage() {
         padding: "24px 16px 100px",
       }}
     >
-      {/* Header */}
-      <div style={{ textAlign: "center", marginTop: 32, marginBottom: 32 }}>
-        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0 }}>松花韩食</h1>
-        <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", margin: "4px 0 0", letterSpacing: "0.1em", textTransform: "uppercase" }}>
-          Songhwa Voice Agent
+      {/* Header — Apple R2 + R5 + R8: brand, address, tap-to-call, languages */}
+      <header style={{ textAlign: "center", marginTop: 32, marginBottom: 32 }}>
+        <h1 style={{ fontSize: 28, fontWeight: 700, margin: 0, letterSpacing: "-0.01em" }}>
+          松花韩食 · 송화한식
+        </h1>
+        <p style={{ fontSize: 13, color: "rgba(255,255,255,0.78)", margin: "6px 0 0" }}>
+          Songhwa Korean Cuisine · Millerz Square, Old Klang Road
         </p>
+        <a
+          href="tel:+60115430 2561"
+          style={{
+            display: "inline-block",
+            marginTop: 8,
+            fontSize: 12,
+            color: "rgba(255,255,255,0.72)",
+            textDecoration: "none",
+            border: "1px solid rgba(255,255,255,0.18)",
+            borderRadius: 999,
+            padding: "4px 12px",
+          }}
+        >
+          📞 +60 11-5430 2561
+        </a>
         {agentConfig && (
-          <p style={{ fontSize: 10, color: "rgba(34,197,94,0.6)", margin: "8px 0 0" }}>
-            Live menu • {toolCount} tools
+          <p style={{ fontSize: 11, color: "rgba(34,197,94,0.75)", margin: "10px 0 0", letterSpacing: "0.04em" }}>
+            Speaks English · 中文 · Bahasa · 한국어
           </p>
         )}
-      </div>
+      </header>
 
       {configError && (
         <div style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: 8, padding: 12, marginBottom: 16, maxWidth: 380, fontSize: 12, color: "#fca5a5" }}>
@@ -817,16 +876,30 @@ export default function SonghwaAgentPage() {
         </div>
       )}
 
-      {/* Mic Button */}
+      {/* Mic Button — Apple Blocker B2: full ARIA, R3: responsive size */}
       <button
         onClick={state === "connected" ? stopSession : startSession}
         disabled={state === "connecting" || !agentConfig}
+        aria-label={
+          state === "connected"
+            ? "End voice session with Songhwa"
+            : state === "connecting"
+              ? "Connecting to Songhwa"
+              : "Start voice session with Songhwa"
+        }
+        aria-pressed={state === "connected"}
+        aria-busy={state === "connecting"}
+        type="button"
         style={{
-          width: 130, height: 130, borderRadius: "50%", border: "none",
-          background: btnBg, cursor: state === "connecting" ? "wait" : agentConfig ? "pointer" : "not-allowed",
+          width: "clamp(120px, 22vw, 180px)",
+          height: "clamp(120px, 22vw, 180px)",
+          borderRadius: "50%",
+          border: "none",
+          background: btnBg,
+          cursor: state === "connecting" ? "wait" : agentConfig ? "pointer" : "not-allowed",
           display: "flex", alignItems: "center", justifyContent: "center",
           boxShadow: glow, transform: `scale(${pulseScale})`,
-          transition: "transform 0.1s ease-out, box-shadow 0.2s ease",
+          transition: reducedMotion ? "none" : "transform 0.1s ease-out, box-shadow 0.2s ease",
           WebkitTapHighlightColor: "transparent",
           opacity: agentConfig ? 1 : 0.5,
         }}
@@ -856,17 +929,22 @@ export default function SonghwaAgentPage() {
         </p>
       )}
 
-      {/* Reservations List */}
+      {/* Reservations from THIS session only (PDPA-safe — Apple Blocker B6 wording fix) */}
       <div style={{ width: "100%", maxWidth: 420, marginTop: 32 }}>
         <div style={{ marginBottom: 12 }}>
           <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>
-            Reservations ({reservations.length})
+            {reservations.length > 0
+              ? `Booked this session (${reservations.length})`
+              : "Your booking will appear here"}
           </h2>
         </div>
 
         {reservations.length === 0 ? (
-          <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 10, padding: "20px 16px", textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>
-            No reservations yet. Talk to the agent to make one.
+          <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 10, padding: "18px 16px", textAlign: "center", color: "rgba(255,255,255,0.72)", fontSize: 13, lineHeight: 1.55 }}>
+            Confirmed bookings show up here.<br />
+            <span style={{ color: "rgba(255,255,255,0.52)", fontSize: 12 }}>
+              Need to find an older booking? Just ask the agent — they&apos;ll look it up by your phone.
+            </span>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -901,41 +979,51 @@ export default function SonghwaAgentPage() {
         )}
       </div>
 
-      {/* Debug Toggle */}
-      <button
-        onClick={() => setShowDebug((p) => !p)}
-        style={{
-          marginTop: 24, fontSize: 11, color: "rgba(255,255,255,0.3)",
-          background: "none", border: "1px solid rgba(255,255,255,0.1)",
-          borderRadius: 6, padding: "4px 12px", cursor: "pointer",
-        }}
-      >
-        {showDebug ? "Hide" : "Show"} Debug Log
-      </button>
+      {/* Debug Toggle — Apple Blocker B5: only visible with ?debug=1 */}
+      {debugEnabled && (
+        <>
+          <button
+            onClick={() => setShowDebug((p) => !p)}
+            type="button"
+            style={{
+              marginTop: 24, fontSize: 11, color: "rgba(255,255,255,0.3)",
+              background: "none", border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: 6, padding: "4px 12px", cursor: "pointer",
+            }}
+          >
+            {showDebug ? "Hide" : "Show"} Debug Log
+          </button>
 
-      {showDebug && debugLog.length > 0 && (
-        <div
-          style={{
-            marginTop: 8, width: "100%", maxWidth: 420, maxHeight: 200,
-            overflow: "auto", background: "rgba(0,0,0,0.5)", borderRadius: 8,
-            padding: "8px 12px", fontSize: 10, fontFamily: "monospace",
-            color: "rgba(255,255,255,0.4)", lineHeight: 1.6,
-          }}
-        >
-          {debugLog.map((line, i) => (
-            <div key={i}>{line}</div>
-          ))}
-        </div>
+          {showDebug && debugLog.length > 0 && (
+            <div
+              style={{
+                marginTop: 8, width: "100%", maxWidth: 420, maxHeight: 200,
+                overflow: "auto", background: "rgba(0,0,0,0.5)", borderRadius: 8,
+                padding: "8px 12px", fontSize: 10, fontFamily: "monospace",
+                color: "rgba(255,255,255,0.4)", lineHeight: 1.6,
+              }}
+            >
+              {debugLog.map((line, i) => (
+                <div key={i}>{line}</div>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
-      {/* Footer */}
-      <div style={{ position: "fixed", bottom: 16, textAlign: "center", fontSize: 11, color: "rgba(255,255,255,0.1)" }}>
-        <p style={{ margin: 0 }}>{BUILD_VERSION}</p>
-      </div>
+      {/* Build version — invisible to humans, readable by automation */}
+      <meta name="songhwa-build" content={BUILD_VERSION} />
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        @media (prefers-reduced-motion: reduce) {
+          *, *::before, *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+          }
+        }
       `}</style>
     </div>
   );

@@ -64,11 +64,30 @@ function sanitizeKey(key: string): string {
   return key.replace(/[^\w.-]/g, "_").slice(0, 200);
 }
 
-// Convenience: extract IP from request (for IP-based limits)
+// Convenience: extract IP from request (for IP-based limits).
+// SECURITY (Bug C1 fix): the `x-forwarded-for` first-hop is set by the client and
+// trivially spoofable. We trust:
+//   1. `x-vercel-forwarded-for` — Vercel platform-set, not user-controllable
+//   2. `cf-connecting-ip` — Cloudflare-set if proxied
+//   3. `x-real-ip` — common reverse-proxy convention
+//   4. Last hop of `x-forwarded-for` — the closest trusted proxy
+//   5. "unknown" fallback (still rate-limited as a single bucket)
 export function getClientIp(req: Request): string {
-  return (
-    req.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
-    req.headers.get("x-real-ip") ??
-    "unknown"
-  );
+  const vercel = req.headers.get("x-vercel-forwarded-for");
+  if (vercel) return vercel.split(",")[0].trim();
+
+  const cf = req.headers.get("cf-connecting-ip");
+  if (cf) return cf.trim();
+
+  const real = req.headers.get("x-real-ip");
+  if (real) return real.trim();
+
+  const xff = req.headers.get("x-forwarded-for");
+  if (xff) {
+    // LAST hop is closest to us — the only one we can trust without proxy config.
+    const hops = xff.split(",").map((s) => s.trim()).filter(Boolean);
+    if (hops.length > 0) return hops[hops.length - 1];
+  }
+
+  return "unknown";
 }

@@ -6,27 +6,12 @@ import { buildCompactSummary } from "@/lib/menu/prompt-injector";
 // Manual trigger: POST with { "secret": "..." } in body.
 
 export async function POST(request: Request) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) {
-    return NextResponse.json(
-      { success: false, error: "CRON_SECRET not configured" },
-      { status: 500 },
-    );
-  }
-
-  // Accept secret from header (Vercel Cron) or body (manual)
+  // SECURITY (Bug H3 fix): generic 401 regardless of config state.
+  // Bug H2 fix: drop body-fallback for secret — header only (body secrets leak to logs).
+  const cronSecret = process.env.CRON_SECRET?.trim();
   const authHeader = request.headers.get("authorization");
-  let providedSecret = authHeader?.replace(/^Bearer\s+/i, "");
-  if (!providedSecret) {
-    try {
-      const body = await request.json();
-      providedSecret = typeof body?.secret === "string" ? body.secret : undefined;
-    } catch {
-      // body might not be JSON — that's fine
-    }
-  }
-
-  if (providedSecret !== cronSecret) {
+  const providedSecret = authHeader?.replace(/^Bearer\s+/i, "");
+  if (!cronSecret || providedSecret !== cronSecret) {
     return NextResponse.json(
       { success: false, error: "Unauthorized" },
       { status: 401 },

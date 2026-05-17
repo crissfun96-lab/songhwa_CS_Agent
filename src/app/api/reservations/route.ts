@@ -11,9 +11,27 @@ import {
 import { markDraftConverted } from "@/lib/reservations/intent";
 import { normalizePhone } from "@/lib/reservations/lifecycle";
 import { enqueueNewReservation } from "@/lib/wa-queue";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import type { Reservation } from "@/lib/types";
 
 const COLLECTION = "songhwa_reservations";
+
+// SECURITY (Bug H4 fix): block CSRF — cross-origin reservation POSTs from
+// attacker pages were succeeding. Combined with Bug C3 (no rate limit) this
+// let an attacker spam staff Telegram via any victim's browser.
+const ALLOWED_ORIGINS = new Set([
+  "https://songhwa-cs-agent.vercel.app",
+  "http://localhost:3000",
+  "http://localhost:3001",
+]);
+
+function isOriginAllowed(request: Request): boolean {
+  const origin = request.headers.get("origin");
+  // Direct curl / mobile / cron-style calls send no Origin — allow those
+  // (browser CSRF requires an Origin to be set).
+  if (!origin) return true;
+  return ALLOWED_ORIGINS.has(origin);
+}
 
 // Stricter schema with session ID for intent tracking
 const CreateReservationSchema = z.object({
@@ -51,8 +69,34 @@ type CreateReservationResponse =
 
 export async function POST(request: Request): Promise<NextResponse<CreateReservationResponse>> {
   try {
+    // ── 0. CSRF + rate limit (Bug C3 + H4 fix) ─────────────────
+    if (!isOriginAllowed(request)) {
+      return NextResponse.json(
+        { success: false, error: "Origin not allowed", code: "validation" },
+        { status: 403 },
+      );
+    }
+
+    const ip = getClientIp(request);
+    const ipLimit = await rateLimit(`reservation-ip:${ip}`, { limit: 10, windowSeconds: 3600 });
+    if (!ipLimit.allowed) {
+      return NextResponse.json(
+        { success: false, error: "Too many reservation attempts. Please wait.", code: "validation" },
+        { status: 429, headers: { "Retry-After": String(ipLimit.resetInSeconds) } },
+      );
+    }
+
     const body = await request.json();
     const parsed = CreateReservationSchema.parse(body);
+
+    // Per-phone limit to stop a single number being spammed across IPs
+    const phoneLimit = await rateLimit(`reservation-phone:${parsed.phone}`, { limit: 5, windowSeconds: 3600 });
+    if (!phoneLimit.allowed) {
+      return NextResponse.json(
+        { success: false, error: "Too many reservations from this phone today. Call us directly.", code: "validation" },
+        { status: 429, headers: { "Retry-After": String(phoneLimit.resetInSeconds) } },
+      );
+    }
 
     // ── 1. Idempotency: detect duplicate booking attempt ───────
     const existing = await findRecentDuplicate(

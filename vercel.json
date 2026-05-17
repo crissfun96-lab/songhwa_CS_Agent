@@ -10,7 +10,7 @@
       "schedule": "0 6 * * *"
     },
     {
-      "path": "/api/admin/wa-queue-health",
+      "path": "/api/cron/wa-queue-health",
       "schedule": "0 9 * * *"
     }
   ]

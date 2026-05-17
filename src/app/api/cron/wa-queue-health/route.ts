@@ -2,6 +2,9 @@
 // Runs daily via vercel.json. Catches sustained Baileys outages that would
 // otherwise silently lose staff notifications. Fixes Bug #10.
 //
+// Path is /api/cron/* (NOT /api/admin/*) to bypass the admin Basic-Auth
+// middleware that intercepts Vercel cron's Bearer-token auth (was Bug C2).
+//
 // Triggered by Vercel cron with Authorization: Bearer $CRON_SECRET.
 
 import { NextResponse } from "next/server";
@@ -32,9 +35,10 @@ async function alertStaff(message: string): Promise<void> {
 }
 
 export async function GET(request: Request) {
-  // Auth: Vercel cron sends Authorization: Bearer $CRON_SECRET
-  const auth = request.headers.get("authorization");
+  // Auth: Vercel cron sends Authorization: Bearer $CRON_SECRET.
+  // Generic 401 regardless of env config state (no information leak).
   const expected = process.env.CRON_SECRET?.trim();
+  const auth = request.headers.get("authorization");
   if (!expected || auth !== `Bearer ${expected}`) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
