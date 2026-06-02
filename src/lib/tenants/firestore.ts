@@ -176,6 +176,34 @@ export async function updateTenant(
   cache.delete(tid);
 }
 
+// List every tenant that should be actively processed (status "trial" or
+// "active"). Used by the WA dispatch + queue-health crons to sweep all tenants.
+//
+// CRITICAL: the default tenant (Songhwa) is ALWAYS included, even before any
+// `foxie_tenants` docs exist — so production keeps running on day one. We
+// prepend the seeded Songhwa tenant if the query didn't already return it,
+// then dedupe by id.
+export async function listActiveTenants(): Promise<Tenant[]> {
+  const snap = await getDb()
+    .collection(COLLECTION)
+    .where("status", "in", ["trial", "active"])
+    .get();
+
+  const tenants = snap.docs.map((doc) => doc.data() as Tenant);
+
+  // Immutable: prepend the seeded Songhwa tenant only if absent (no mutation).
+  const withDefault = tenants.some((t) => t.id === DEFAULT_TENANT_ID)
+    ? tenants
+    : [await getOrSeedSonghwa(), ...tenants];
+
+  // Dedupe by id (defensive — guards against a duplicate Songhwa doc).
+  const byId = new Map<string, Tenant>();
+  for (const t of withDefault) {
+    if (!byId.has(t.id)) byId.set(t.id, t);
+  }
+  return [...byId.values()];
+}
+
 export function effectiveLimits(tenant: Tenant) {
   return { ...TIER_LIMITS[tenant.tier], ...tenant.customLimits };
 }

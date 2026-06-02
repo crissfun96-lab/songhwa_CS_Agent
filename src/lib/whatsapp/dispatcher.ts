@@ -8,7 +8,11 @@
 //   5. If tool call → invoke (HTTP self-call), append result, loop max 4 times
 //   6. Final text → send via Meta Cloud API, append to history, mark processed
 //
-// Invoked by Vercel cron (every 1 min) OR triggered async by webhook.
+// Real-time delivery comes from the webhook's fire-and-forget trigger. The
+// Vercel cron is a daily safety-net sweep (Vercel Hobby allows only daily
+// crons). Both can run concurrently, so each message is CLAIMED in a Firestore
+// transaction before processing — this serializes the two paths so no message
+// is ever double-replied.
 
 import { getDb } from "../firebase-admin";
 import { loadHistory, appendMessage, type ConvMessage } from "./conversation";
@@ -34,7 +38,13 @@ interface InboundMessage {
   phoneNumberId: string;
   processed: boolean;
   processingError?: string;
+  processing?: boolean;
+  claimedAt?: string;
 }
+
+// A message whose `claimedAt` is older than this is treated as a stale claim
+// (the claiming run probably crashed mid-flight) and may be re-claimed.
+const STALE_CLAIM_MS = 5 * 60 * 1000;
 
 const APP_BASE_URL =
   process.env.NEXT_PUBLIC_APP_URL?.trim() ||
@@ -320,7 +330,8 @@ export async function processInboundBatch(
   failed: number;
   skipped: number;
 }> {
-  const snap = await getDb()
+  const db = getDb();
+  const snap = await db
     .collection(tc(tenantId, "inbound_messages"))
     .where("processed", "==", false)
     .orderBy("receivedAt", "asc")
@@ -332,18 +343,52 @@ export async function processInboundBatch(
   let skipped = 0;
 
   for (const doc of snap.docs) {
+    // Atomically CLAIM the message so the cron + webhook trigger can't both
+    // reply to it. Re-read inside the transaction; only proceed if it's still
+    // unprocessed AND not already claimed by a live run (stale claims older
+    // than STALE_CLAIM_MS are recoverable). If the claim fails, a concurrent
+    // run owns it — skip silently without counting it.
+    const nowIso = new Date().toISOString();
+    let claimed = false;
+    try {
+      await db.runTransaction(async (txn) => {
+        const fresh = await txn.get(doc.ref);
+        if (!fresh.exists) return;
+        const data = fresh.data() as InboundMessage;
+        if (data.processed === true) return;
+
+        const claimedAtMs = data.claimedAt ? Date.parse(data.claimedAt) : NaN;
+        const isStaleClaim =
+          Number.isFinite(claimedAtMs) &&
+          Date.now() - claimedAtMs > STALE_CLAIM_MS;
+        if (data.processing && !isStaleClaim) return;
+
+        txn.update(doc.ref, { processing: true, claimedAt: nowIso });
+        claimed = true;
+      });
+    } catch (err) {
+      // Transaction contention/abort — treat as "not claimed", let the owner run it.
+      console.error(
+        `[wa-dispatcher] claim txn for msg ${doc.id} aborted:`,
+        err instanceof Error ? err.message : String(err),
+      );
+      continue;
+    }
+
+    if (!claimed) continue;
+
     const msg = doc.data() as InboundMessage;
     try {
       const result = await processInboundMessage(msg, tenantId);
       if (!result.ok) {
         failed++;
-        await doc.ref.update({ processed: true, processingError: result.error ?? "unknown" });
+        await doc.ref.update({ processed: true, processing: false, processingError: result.error ?? "unknown" });
       } else if (result.replyText) {
         processed++;
-        await doc.ref.update({ processed: true });
+        await doc.ref.update({ processed: true, processing: false });
       } else {
         skipped++;
-        await doc.ref.update({ processed: true });
+        await doc.ref.update({ processed: true, processing: false });
       }
     } catch (err) {
       failed++;
@@ -351,6 +396,7 @@ export async function processInboundBatch(
       console.error(`[wa-dispatcher] msg ${doc.id} failed:`, message);
       await doc.ref.update({
         processed: true,
+        processing: false,
         processingError: message.slice(0, 500),
       });
     }

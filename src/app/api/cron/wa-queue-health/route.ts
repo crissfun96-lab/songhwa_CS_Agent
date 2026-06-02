@@ -11,7 +11,7 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/firebase-admin";
 import { verifyBearer } from "@/lib/auth-secret";
 import { tc } from "@/lib/tenants/collection";
-import { DEFAULT_TENANT_ID } from "@/lib/tenants/types";
+import { listActiveTenants } from "@/lib/tenants/firestore";
 
 const DEAD_THRESHOLD_ATTEMPTS = 3;
 const TELEGRAM_API = (token: string) => `https://api.telegram.org/bot${token}/sendMessage`;
@@ -22,6 +22,7 @@ interface QueueItem {
   sentAt: string | null;
   createdAt: string;
   type: string;
+  tenantId: string;
 }
 
 async function alertStaff(message: string): Promise<void> {
@@ -44,16 +45,29 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Cron runs against the platform default tenant. Multi-tenant deployment
-    // would iterate foxie_tenants and check each tenant's queue separately.
-    const snap = await getDb()
-      .collection(tc(DEFAULT_TENANT_ID, "notification_queue"))
-      .where("sentAt", "==", null)
-      .where("attempts", ">=", DEAD_THRESHOLD_ATTEMPTS)
-      .limit(50)
-      .get();
+    // Sweep every active tenant's queue, not just the default — each tenant
+    // has its own `notification_queue` collection via tc().
+    const tenants = await listActiveTenants();
+    const deadItems: QueueItem[] = [];
+    const perTenantDead: { tenantId: string; deadCount: number }[] = [];
 
-    const deadItems = snap.docs.map((d) => d.data() as QueueItem);
+    for (const tenant of tenants) {
+      const snap = await getDb()
+        .collection(tc(tenant.id, "notification_queue"))
+        .where("sentAt", "==", null)
+        .where("attempts", ">=", DEAD_THRESHOLD_ATTEMPTS)
+        .limit(50)
+        .get();
+
+      const tenantDead = snap.docs.map((d) => ({
+        ...(d.data() as QueueItem),
+        tenantId: tenant.id,
+      }));
+      if (tenantDead.length > 0) {
+        perTenantDead.push({ tenantId: tenant.id, deadCount: tenantDead.length });
+        deadItems.push(...tenantDead);
+      }
+    }
 
     if (deadItems.length === 0) {
       return NextResponse.json({
@@ -67,11 +81,17 @@ export async function GET(request: Request) {
       cur.createdAt < acc.createdAt ? cur : acc,
     );
 
+    const tenantBreakdown = perTenantDead
+      .map((t) => `• <code>${t.tenantId}</code>: ${t.deadCount}`)
+      .join("\n");
+
     const message = [
       "🚨 <b>WA Notification Queue — Dead Items</b>",
       "",
-      `<b>${deadItems.length}</b> messages have failed ${DEAD_THRESHOLD_ATTEMPTS}+ times.`,
-      `Oldest: <code>${oldest.id}</code> (${oldest.type})`,
+      `<b>${deadItems.length}</b> messages have failed ${DEAD_THRESHOLD_ATTEMPTS}+ times across ${perTenantDead.length} tenant(s).`,
+      tenantBreakdown,
+      "",
+      `Oldest: <code>${oldest.id}</code> (${oldest.type}) — tenant <code>${oldest.tenantId}</code>`,
       `Created: ${oldest.createdAt}`,
       "",
       "Likely causes:",
@@ -88,6 +108,7 @@ export async function GET(request: Request) {
       success: true,
       deadCount: deadItems.length,
       oldest: oldest.id,
+      perTenant: perTenantDead,
       alertSent: true,
     });
   } catch (error) {
