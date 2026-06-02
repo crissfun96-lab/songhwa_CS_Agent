@@ -11,6 +11,7 @@ import {
 import { markDraftConverted } from "@/lib/reservations/intent";
 import { normalizePhone } from "@/lib/reservations/lifecycle";
 import { enqueueNewReservation } from "@/lib/wa-queue";
+import { sendBookingConfirmation } from "@/lib/whatsapp/meta-client";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { emitAsync } from "@/lib/metering/firestore";
 import { resolveTenantId } from "@/lib/tenants/resolver";
@@ -245,6 +246,12 @@ export async function POST(request: Request): Promise<NextResponse<CreateReserva
 
     sendStaffNotification(reservation).catch((err) =>
       console.error("[Telegram] Notification failed:", err),
+    );
+
+    // Customer-facing WhatsApp confirmation (template-first w/ text fallback,
+    // self-env-guarded). Fire-and-forget — must NEVER block or fail the booking.
+    sendBookingConfirmation(reservation).catch((err) =>
+      console.error("[reservations] customer confirmation failed:", err),
     );
 
     enqueueNewReservation(reservation, { tenantId }).catch((err) =>

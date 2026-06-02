@@ -20,6 +20,14 @@
     {
       "path": "/api/cron/metering-rollup",
       "schedule": "5 1 * * *"
+    },
+    {
+      "path": "/api/cron/billing-lifecycle",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/reservation-reminders",
+      "schedule": "0 10 * * *"
     }
   ]
 }

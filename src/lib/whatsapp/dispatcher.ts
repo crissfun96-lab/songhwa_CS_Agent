@@ -22,6 +22,7 @@ import { getWaConversationMode } from "../handoff/firestore";
 import { buildSystemPrompt, TOOL_DECLARATIONS } from "../menu/prompt-injector";
 import { tc } from "../tenants/collection";
 import { DEFAULT_TENANT_ID } from "../tenants/types";
+import { tenantServiceState } from "../billing/lifecycle";
 
 const MAX_TOOL_ROUNDS = 4;
 
@@ -230,6 +231,14 @@ export async function processInboundMessage(
   const mode = await getWaConversationMode(msg.from, tenantId);
   if (mode === "human") {
     return { ok: true, error: "human_mode — AI silent" };
+  }
+
+  // Billing gate: if this tenant isn't serviceable (suspended / cancelled /
+  // trial expired / over quota), skip SILENTLY — never reply, so we don't
+  // spam a suspended tenant's customers. Fail-open keeps active tenants live.
+  const s = await tenantServiceState(tenantId);
+  if (!s.serviceable) {
+    return { ok: true, error: `service_${s.reason} — skipped` };
   }
 
   const customerPhone = msg.from;

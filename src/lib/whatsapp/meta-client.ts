@@ -25,6 +25,16 @@ function requireEnv(name: string): string {
   return v;
 }
 
+// True only when BOTH Meta WA credentials are present. Customer-facing helpers
+// no-op gracefully when this is false, so a missing-config deploy never throws
+// or blocks the booking flow.
+export function isMetaWaConfigured(): boolean {
+  return Boolean(
+    process.env.META_WHATSAPP_PHONE_ID?.trim() &&
+      process.env.META_WHATSAPP_TOKEN?.trim(),
+  );
+}
+
 // Normalize MY phone to WhatsApp wa_id format (E.164 without leading +)
 // Accepts: "0123456789", "+60123456789", "60123456789", "012-3456789"
 export function toWaId(phone: string): string {
@@ -106,6 +116,12 @@ export async function sendTemplate(
 // ── High-level helpers ──
 
 export async function sendBookingConfirmation(r: Reservation): Promise<void> {
+  // Env-guard: no Meta WA config → no-op (never throw, never block the booking).
+  if (!isMetaWaConfigured()) {
+    console.warn("[Meta WA] confirmation skipped — META_WHATSAPP_* not configured");
+    return;
+  }
+
   const body = [
     `Hi ${r.name}, your booking at Songhwa Korean Cuisine is confirmed.`,
     "",
@@ -121,10 +137,40 @@ export async function sendBookingConfirmation(r: Reservation): Promise<void> {
     .filter(Boolean)
     .join("\n");
 
-  await sendText(r.phone, body);
+  // 24-HOUR WINDOW RULE: a phone/voice booking has no open WhatsApp customer
+  // window, so free-form text gets rejected by Meta. TRY an approved template
+  // first (mirrors sendBookingReminder), then FALL BACK to free-form text —
+  // which succeeds for in-window bookings (e.g. customers who messaged on WA).
+  try {
+    await sendTemplate(r.phone, "booking_confirmation", "en_US", [
+      {
+        type: "body",
+        parameters: [
+          { type: "text", text: r.name },
+          { type: "text", text: `${r.date} at ${r.time}` },
+          { type: "text", text: String(r.pax) },
+        ],
+      },
+    ]);
+  } catch (err) {
+    console.warn("[Meta WA] confirmation template fallback to text:", err);
+    try {
+      await sendText(r.phone, body);
+    } catch (fallbackErr) {
+      // Both template + text failed (Meta down / outside 24h window). Notification
+      // only — never throw so callers can await this directly without a .catch().
+      console.error("[Meta WA] confirmation text fallback also failed:", fallbackErr);
+    }
+  }
 }
 
 export async function sendBookingReminder(r: Reservation): Promise<void> {
+  // Env-guard: no Meta WA config → no-op (never throw).
+  if (!isMetaWaConfigured()) {
+    console.warn("[Meta WA] reminder skipped — META_WHATSAPP_* not configured");
+    return;
+  }
+
   // For messages > 24h after last customer contact, must use approved template
   // Falls back to plain text if template not configured
   try {

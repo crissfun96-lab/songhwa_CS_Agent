@@ -29,6 +29,7 @@ export interface Reservation {
   cancelledAt?: string;
   cancelReason?: string;
   createdBySessionId?: string;   // for ownership verification on PATCH/DELETE
+  reminderSentAt?: string;       // ISO timestamp set by reservation-reminders cron (idempotency guard)
 }
 
 export interface CustomerProfile {
