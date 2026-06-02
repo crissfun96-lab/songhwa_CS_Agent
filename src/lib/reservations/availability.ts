@@ -6,6 +6,7 @@ import { getDb } from "../firebase-admin";
 import { tc } from "../tenants/collection";
 import { DEFAULT_TENANT_ID } from "../tenants/types";
 import type { Reservation } from "../types";
+import { resolveDate } from "./date-resolver";
 
 // Capacity rules — tune these per Chris's real floor plan.
 // In a multi-tenant world these would live on the tenant doc.
@@ -77,12 +78,25 @@ export type AvailabilityCheck =
 
 // ── Main availability check ──────────────────────────────────
 export async function checkAvailability(
-  date: string,          // YYYY-MM-DD
+  rawDate: string,       // YYYY-MM-DD or natural language ("Saturday April 25")
   requestedTime: string, // anything-like
   pax: number,
   excludeReservationId?: string, // when re-checking for an update, exclude the current booking
   tenantId: string = DEFAULT_TENANT_ID,
 ): Promise<AvailabilityCheck> {
+  // Resolve the date FIRST — Firestore stores canonical YYYY-MM-DD keys, so a
+  // free-form date ("Saturday April 25") must be normalized before ANY query.
+  // Unparseable dates reuse the existing `invalid_time` reason (keeps the union).
+  const resolved = resolveDate(rawDate);
+  if (!resolved.ok) {
+    return {
+      available: false,
+      reason: "invalid_time",
+      alternatives: [],
+    };
+  }
+  const date = resolved.date;
+
   let hhmm: string;
   try {
     hhmm = normalizeTime(requestedTime);
@@ -240,11 +254,18 @@ export function isCapacityExceeded(
 // Prevents the same customer from accidentally booking twice in a single session
 export async function findRecentDuplicate(
   phone: string,
-  date: string,
+  rawDate: string,
   time: string,
   windowMinutes: number = 60,
   tenantId: string = DEFAULT_TENANT_ID,
 ): Promise<Reservation | null> {
+  // Resolve to canonical YYYY-MM-DD before the exact-string `date ==` query —
+  // otherwise a free-form date never matches a stored "2026-04-25" key and the
+  // duplicate guard silently does nothing.
+  const resolved = resolveDate(rawDate);
+  if (!resolved.ok) return null;
+  const date = resolved.date;
+
   const snapshot = await getDb()
     .collection(tc(tenantId, "reservations"))
     .where("phone", "==", phone)

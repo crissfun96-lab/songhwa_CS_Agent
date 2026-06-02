@@ -7,7 +7,9 @@ import {
   checkAvailability,
   findRecentDuplicate,
   isCapacityExceeded,
+  normalizeTime,
 } from "@/lib/reservations/availability";
+import { resolveDate } from "@/lib/reservations/date-resolver";
 import { markDraftConverted } from "@/lib/reservations/intent";
 import { normalizePhone } from "@/lib/reservations/lifecycle";
 import { enqueueNewReservation } from "@/lib/wa-queue";
@@ -112,12 +114,25 @@ export async function POST(request: Request): Promise<NextResponse<CreateReserva
       );
     }
 
+    // ── 0b. Resolve the date to canonical YYYY-MM-DD (KL tz) ───
+    // The agent / customer may send "Saturday April 25" etc. Firestore stores and
+    // queries dates as exact YYYY-MM-DD keys, so we MUST canonicalize before the
+    // duplicate check, availability check, transaction query, AND before storing.
+    const resolvedDate = resolveDate(parsed.date);
+    if (!resolvedDate.ok) {
+      return NextResponse.json(
+        { success: false, error: "Could not understand the reservation date. Please give a clear date.", code: "invalid_time" },
+        { status: 400 },
+      );
+    }
+    const date = resolvedDate.date;
+
     // ── 1. Idempotency (pre-flight) ────────────────────────────
     // This catches user-level dupes serially. The HIGH-1 TOCTOU race is
     // closed by re-checking duplicate INSIDE the transaction below.
     const existing = await findRecentDuplicate(
       parsed.phone,
-      parsed.date,
+      date,
       parsed.time,
       60,
       tenantId,
@@ -143,7 +158,7 @@ export async function POST(request: Request): Promise<NextResponse<CreateReserva
 
     // First: check availability (can't be inside transaction because of complex query)
     const availability = await checkAvailability(
-      parsed.date,
+      date,
       parsed.time,
       parsed.pax,
       undefined,
@@ -170,7 +185,7 @@ export async function POST(request: Request): Promise<NextResponse<CreateReserva
       name: sanitizeForNotification(parsed.name),
       phone: parsed.phone,
       phoneNormalized: normalizePhone(parsed.phone),
-      date: parsed.date,
+      date,
       time: parsed.time,
       pax: parsed.pax,
       menuChoice: sanitizeForNotification(parsed.menuChoice),
@@ -193,10 +208,17 @@ export async function POST(request: Request): Promise<NextResponse<CreateReserva
     })();
     const idempotencyCutoff = normalizedNewTime - 60 * 60 * 1000;
     const normalizedPhone = reservation.phoneNormalized;
-    const newTimeBucket = parsed.time;
+    // Normalize so concurrent dupes expressed differently ("7 PM" vs "19:00")
+    // still collide in the in-transaction guard below.
+    let newTimeBucket: string;
+    try {
+      newTimeBucket = normalizeTime(parsed.time);
+    } catch {
+      newTimeBucket = parsed.time;
+    }
 
     await db.runTransaction(async (tx) => {
-      const dayQuery = db.collection(COLLECTION).where("date", "==", parsed.date);
+      const dayQuery = db.collection(COLLECTION).where("date", "==", date);
       const daySnap = await tx.get(dayQuery);
       const dayReservations = daySnap.docs.map((d) => d.data() as Reservation);
 
@@ -208,7 +230,11 @@ export async function POST(request: Request): Promise<NextResponse<CreateReserva
           r.phone === parsed.phone ||
           (r.phoneNormalized && r.phoneNormalized === normalizedPhone);
         if (!samePhone) return false;
-        if (r.time !== newTimeBucket) return false;
+        try {
+          if (normalizeTime(r.time) !== newTimeBucket) return false;
+        } catch {
+          return false;
+        }
         try {
           return new Date(r.createdAt).getTime() > idempotencyCutoff;
         } catch {
@@ -232,7 +258,7 @@ export async function POST(request: Request): Promise<NextResponse<CreateReserva
       parsed.phone,
       parsed.menuChoice,
       parsed.remarks,
-      parsed.date,
+      date,
       parsed.time,
       parsed.pax,
       tenantId,

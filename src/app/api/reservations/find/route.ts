@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { findReservationsByPhone } from "@/lib/reservations/lifecycle";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { resolveTenantId } from "@/lib/tenants/resolver";
+import { resolveDate } from "@/lib/reservations/date-resolver";
 
 // GET /api/reservations/find?phone=01154302561&date=2026-04-25&activeOnly=true
 // Rate-limited: 20 lookups/hour per IP. Each lookup is by an exact phone — attackers
@@ -10,7 +11,12 @@ import { resolveTenantId } from "@/lib/tenants/resolver";
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const phone = searchParams.get("phone");
-  const date = searchParams.get("date") ?? undefined;
+  const rawDate = searchParams.get("date") ?? undefined;
+  // Resolve the optional date filter to canonical YYYY-MM-DD so "Saturday"
+  // matches a stored "2026-04-25". If unparseable, IGNORE the filter (return
+  // all of the phone's reservations) rather than erroring — find is read-only.
+  const resolvedDate = rawDate ? resolveDate(rawDate) : undefined;
+  const date = resolvedDate?.ok ? resolvedDate.date : undefined;
   const activeOnly = searchParams.get("activeOnly") !== "false";
 
   if (!phone || phone.trim().length < 5) {

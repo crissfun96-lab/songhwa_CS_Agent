@@ -6,6 +6,7 @@ import {
   cancelReservation,
   normalizePhone,
 } from "@/lib/reservations/lifecycle";
+import { resolveDate } from "@/lib/reservations/date-resolver";
 import { sendReservationUpdateNotification, sendReservationCancelNotification } from "@/lib/telegram";
 import { enqueueReservationUpdate, enqueueReservationCancel } from "@/lib/wa-queue";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
@@ -84,6 +85,21 @@ export async function PATCH(
       return NextResponse.json({ success: false, error: ownership.error }, { status: ownership.status });
     }
 
+    // Resolve any new date to canonical YYYY-MM-DD BEFORE the availability
+    // re-check + write inside updateReservation — otherwise a free-form date
+    // ("next Saturday") would be stored raw and never match future queries.
+    let resolvedNewDate: string | undefined;
+    if (parsed.date !== undefined) {
+      const r = resolveDate(parsed.date);
+      if (!r.ok) {
+        return NextResponse.json(
+          { success: false, error: "Could not understand the new date. Please give a clear date.", code: "invalid_time" },
+          { status: 400 },
+        );
+      }
+      resolvedNewDate = r.date;
+    }
+
     const result = await updateReservation({
       id,
       updatedBy: "agent",
@@ -91,7 +107,7 @@ export async function PATCH(
       reason: parsed.reason,
       changes: {
         ...(parsed.name && { name: parsed.name }),
-        ...(parsed.date && { date: parsed.date }),
+        ...(resolvedNewDate && { date: resolvedNewDate }),
         ...(parsed.time && { time: parsed.time }),
         ...(parsed.pax && { pax: parsed.pax }),
         ...(parsed.menuChoice !== undefined && { menuChoice: parsed.menuChoice }),

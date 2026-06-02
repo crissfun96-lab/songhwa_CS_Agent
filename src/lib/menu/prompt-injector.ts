@@ -11,6 +11,7 @@ import {
   getActivePromos,
   saveCompactSummary,
   getCompactSummary,
+  getKlNow,
 } from "./firestore";
 import {
   getBusinessInfo,
@@ -84,6 +85,7 @@ BUILDING: Millerz Tower E, Podium Level 8. Search "Songhwa Korean Cuisine Miller
 
 HOURS (per day): {{BUSINESS_HOURS}}
 RIGHT NOW: {{CURRENT_STATUS}}
+TODAY: {{CURRENT_DATE}}
 
 CONTACT: Phone {{BUSINESS_PHONE}}. Instagram @songhwa_millerz. Facebook "SongHwa Korean Cuisine 송화한식".
 
@@ -317,6 +319,36 @@ export async function buildCompactSummary(
 //
 // Tenants can provide a full `tenant.promptOverrides.systemPromptTemplate`
 // to replace the Songhwa-shaped BASE_PROMPT_TEMPLATE entirely (white-label).
+// ── Today's date line (the booking-engine date anchor) ────────
+// Without this the agent has NO idea what "today" is, so "this Saturday"
+// resolves against its frozen training-cutoff date → wrong day → corrupt
+// bookings. The server still re-resolves every date defensively (see
+// date-resolver.ts), but giving the agent the anchor keeps the conversation
+// coherent. Reads like:
+//   "Saturday, 25 April 2026 (Asia/Kuala_Lumpur). Tomorrow = Sunday 26 Apr.
+//    Always resolve relative dates against this."
+export function buildCurrentDateLine(now: Date = new Date()): string {
+  const { date } = getKlNow(now);
+  const todayLong = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kuala_Lumpur",
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(now);
+  // Tomorrow = today's KL date + 1 day, formatted short.
+  const [y, m, d] = date.split("-").map(Number);
+  const tomorrow = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  const tomorrowShort = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "UTC",
+    weekday: "long",
+    day: "numeric",
+    month: "short",
+  }).format(tomorrow);
+  return `${todayLong} (Asia/Kuala_Lumpur). Tomorrow = ${tomorrowShort}. Always resolve relative dates against this.`;
+}
+
 export async function buildSystemPrompt(
   tenantId: string = DEFAULT_TENANT_ID,
 ): Promise<string> {
@@ -356,6 +388,7 @@ export async function buildSystemPrompt(
     .replaceAll("{{BUSINESS_PHONE}}", phone)
     .replaceAll("{{BUSINESS_HOURS}}", hoursText)
     .replaceAll("{{CURRENT_STATUS}}", statusText)
+    .replaceAll("{{CURRENT_DATE}}", buildCurrentDateLine())
     .replaceAll("{{MENU_SUMMARY_JSON}}", summaryJson);
 
   // Append any tenant-specific additional rules — added AFTER the base rules
@@ -453,7 +486,7 @@ export const TOOL_DECLARATIONS = [
     parameters: {
       type: "OBJECT",
       properties: {
-        date: { type: "STRING", description: "Requested date (YYYY-MM-DD or 'Saturday April 25')" },
+        date: { type: "STRING", description: "Requested date. The server resolves natural language ('this Saturday', '25 April', 'tomorrow') against TODAY in KL time, but PREFER a concrete YYYY-MM-DD when you know it." },
         time: { type: "STRING", description: "Requested time (e.g. '7:00 PM', '19:00')" },
         pax: { type: "INTEGER", description: "Number of guests" },
       },
@@ -469,7 +502,7 @@ export const TOOL_DECLARATIONS = [
       properties: {
         name: { type: "STRING", description: "Customer name (if known)" },
         phone: { type: "STRING", description: "Customer phone (if known)" },
-        date: { type: "STRING", description: "Requested date (if known)" },
+        date: { type: "STRING", description: "Requested date (if known). Natural language is accepted (server resolves it), but prefer YYYY-MM-DD." },
         time: { type: "STRING", description: "Requested time (if known)" },
         pax: { type: "INTEGER", description: "Pax count (if known)" },
         menu_choice: { type: "STRING", description: "Menu set choice (if known)" },
@@ -485,7 +518,7 @@ export const TOOL_DECLARATIONS = [
       type: "OBJECT",
       properties: {
         phone: { type: "STRING", description: "Customer's phone number" },
-        date: { type: "STRING", description: "Optional: specific date (YYYY-MM-DD) to filter" },
+        date: { type: "STRING", description: "Optional: date to filter by. Natural language ('Saturday') is resolved server-side against TODAY in KL time; prefer YYYY-MM-DD. Unrecognized dates are ignored (returns all of the phone's reservations)." },
       },
       required: ["phone"],
     },
@@ -498,7 +531,7 @@ export const TOOL_DECLARATIONS = [
       type: "OBJECT",
       properties: {
         id: { type: "STRING", description: "Reservation ID (from find_reservation result)" },
-        date: { type: "STRING", description: "New date (only if changing)" },
+        date: { type: "STRING", description: "New date (only if changing). Natural language is resolved server-side against TODAY in KL time; prefer YYYY-MM-DD." },
         time: { type: "STRING", description: "New time (only if changing)" },
         pax: { type: "INTEGER", description: "New pax count (only if changing)" },
         menu_choice: { type: "STRING", description: "New menu selection (only if changing)" },
@@ -532,7 +565,7 @@ export const TOOL_DECLARATIONS = [
         phone: { type: "STRING", description: "Customer's phone number" },
         date: {
           type: "STRING",
-          description: "Reservation date (e.g. '2026-04-25' or 'Saturday April 25')",
+          description: "Reservation date. The server resolves natural language ('Saturday April 25', 'next Saturday', 'tomorrow') against TODAY in KL time and stores a canonical YYYY-MM-DD — but prefer sending a concrete YYYY-MM-DD when you have it.",
         },
         time: { type: "STRING", description: "Reservation time (e.g. '7:00 PM')" },
         pax: { type: "INTEGER", description: "Number of guests" },
