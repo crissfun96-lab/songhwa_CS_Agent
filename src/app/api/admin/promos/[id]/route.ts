@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod/v4";
 import { getDb } from "@/lib/firebase-admin";
-import { MENU_COLLECTIONS } from "@/lib/menu/firestore";
+import { menuCollections } from "@/lib/menu/firestore";
 import { buildCompactSummary } from "@/lib/menu/prompt-injector";
+import { resolveTenantId } from "@/lib/tenants/resolver";
 
-function refreshCache() {
-  buildCompactSummary().catch((err) =>
+function refreshCache(tenantId: string) {
+  buildCompactSummary(tenantId).catch((err) =>
     console.error("[admin] cache rebuild failed:", err),
   );
 }
@@ -22,6 +23,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const tenantId = resolveTenantId(request);
     const { id } = await params;
     const body = await request.json();
     const parsed = UpdateSchema.parse(body);
@@ -36,11 +38,11 @@ export async function PATCH(
     if (parsed.is_active !== undefined) updates.isActive = parsed.is_active;
 
     await getDb()
-      .collection(MENU_COLLECTIONS.promos)
+      .collection(menuCollections(tenantId).promos)
       .doc(id)
       .update(updates);
 
-    refreshCache();
+    refreshCache(tenantId);
     return NextResponse.json({ success: true });
   } catch (error) {
     return NextResponse.json(
@@ -51,19 +53,20 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const tenantId = resolveTenantId(request);
     const { id } = await params;
     await getDb()
-      .collection(MENU_COLLECTIONS.promos)
+      .collection(menuCollections(tenantId).promos)
       .doc(id)
       .update({
         isActive: false,
         updatedAt: new Date().toISOString(),
       });
-    refreshCache();
+    refreshCache(tenantId);
     return NextResponse.json({ success: true });
   } catch (error) {
     return NextResponse.json(

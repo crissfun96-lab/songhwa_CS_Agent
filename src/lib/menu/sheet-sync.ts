@@ -18,8 +18,9 @@ import {
   getAllActiveMenuItems,
   getAllActiveSets,
   saveSyncStatus,
-  MENU_COLLECTIONS,
+  menuCollections,
 } from "./firestore";
+import { DEFAULT_TENANT_ID } from "../tenants/types";
 import type {
   MenuItem,
   MenuSet,
@@ -373,7 +374,10 @@ export interface SyncResult extends SyncStatus {
   durationMs: number;
 }
 
-export async function syncAll(config: SyncConfig): Promise<SyncResult> {
+export async function syncAll(
+  config: SyncConfig,
+  tenantId: string = DEFAULT_TENANT_ID,
+): Promise<SyncResult> {
   const startedAt = Date.now();
   const now = new Date().toISOString();
   const sourceVersion = `sheet-${Date.now()}`;
@@ -403,7 +407,7 @@ export async function syncAll(config: SyncConfig): Promise<SyncResult> {
         try {
           const item = parseMenuItemRow(row, sourceVersion, now);
           seenIds.items.add(item.id);
-          await upsertMenuItem(item);
+          await upsertMenuItem(item, tenantId);
           counts.items++;
         } catch (err) {
           errors.push(`menu row ${row.id || "?"}: ${errorMessage(err)}`);
@@ -416,7 +420,7 @@ export async function syncAll(config: SyncConfig): Promise<SyncResult> {
         try {
           const set = parseSetRow(row, sourceVersion, now);
           seenIds.sets.add(set.id);
-          await upsertMenuSet(set);
+          await upsertMenuSet(set, tenantId);
           counts.sets++;
         } catch (err) {
           errors.push(`sets row ${row.id || "?"}: ${errorMessage(err)}`);
@@ -429,7 +433,7 @@ export async function syncAll(config: SyncConfig): Promise<SyncResult> {
         try {
           const promo = parsePromoRow(row, sourceVersion, now);
           seenIds.promos.add(promo.id);
-          await upsertPromo(promo);
+          await upsertPromo(promo, tenantId);
           counts.promos++;
         } catch (err) {
           errors.push(`promos row ${row.id || "?"}: ${errorMessage(err)}`);
@@ -442,7 +446,7 @@ export async function syncAll(config: SyncConfig): Promise<SyncResult> {
         try {
           const faq = parseFaqRow(row, sourceVersion, now);
           seenIds.faqs.add(faq.id);
-          await upsertFaq(faq);
+          await upsertFaq(faq, tenantId);
           counts.faqs++;
         } catch (err) {
           errors.push(`faq row ${row.id || "?"}: ${errorMessage(err)}`);
@@ -455,7 +459,7 @@ export async function syncAll(config: SyncConfig): Promise<SyncResult> {
         try {
           const example = parseExampleRow(row, sourceVersion, now);
           seenIds.examples.add(example.id);
-          await upsertExample(example);
+          await upsertExample(example, tenantId);
           counts.examples++;
         } catch (err) {
           errors.push(`examples row ${row.id || "?"}: ${errorMessage(err)}`);
@@ -465,8 +469,9 @@ export async function syncAll(config: SyncConfig): Promise<SyncResult> {
   ]);
 
   // Soft-delete: items not seen in this sync
-  await softDeleteMissing(MENU_COLLECTIONS.menuItems, seenIds.items, sourceVersion, "items");
-  await softDeleteMissing(MENU_COLLECTIONS.menuSets, seenIds.sets, sourceVersion, "sets");
+  const cols = menuCollections(tenantId);
+  await softDeleteMissing(cols.menuItems, seenIds.items, sourceVersion, "items", tenantId);
+  await softDeleteMissing(cols.menuSets, seenIds.sets, sourceVersion, "sets", tenantId);
 
   const status: SyncStatus = {
     lastSyncAt: now,
@@ -479,7 +484,7 @@ export async function syncAll(config: SyncConfig): Promise<SyncResult> {
     errors,
   };
 
-  await saveSyncStatus(status);
+  await saveSyncStatus(status, tenantId);
 
   return {
     ...status,
@@ -501,12 +506,13 @@ async function softDeleteMissing(
   seenIds: Set<string>,
   sourceVersion: string,
   label: string,
+  tenantId: string = DEFAULT_TENANT_ID,
 ): Promise<void> {
   const existing =
     label === "items"
-      ? await getAllActiveMenuItems()
+      ? await getAllActiveMenuItems(tenantId)
       : label === "sets"
-        ? await getAllActiveSets()
+        ? await getAllActiveSets(tenantId)
         : [];
 
   const removedIds = existing

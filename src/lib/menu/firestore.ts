@@ -1,4 +1,5 @@
 import { getDb } from "../firebase-admin";
+import { DEFAULT_TENANT_ID } from "../tenants/types";
 import type {
   MenuItem,
   MenuSet,
@@ -9,17 +10,38 @@ import type {
   SyncStatus,
 } from "./types";
 
-// ── Collection names (one source of truth) ────────────────────
-export const MENU_COLLECTIONS = {
-  menuItems: "songhwa_menu_items",
-  menuSets: "songhwa_menu_sets",
-  promos: "songhwa_promos",
-  faqs: "songhwa_faqs",
-  examples: "songhwa_voice_examples",
-  photos: "songhwa_dish_photos",
-  summary: "songhwa_menu_cache",
-  syncStatus: "songhwa_sync_status",
-} as const;
+// ── Tenant-aware collection-name resolver ─────────────────────
+// The default tenant (Songhwa) resolves to the EXACT existing collection
+// names — zero migration. Other tenants substitute the `songhwa_` prefix
+// with `<tenantId>_`. We use a local resolver here (not `tc()`) because the
+// menu domain has collections (`summary`, `syncStatus`, `examples`) that `tc()`
+// does not model.
+function isValidSlug(s: string): boolean {
+  return /^[a-z0-9][a-z0-9-]{0,39}$/.test(s);
+}
+
+export function menuCollections(tenantId: string = DEFAULT_TENANT_ID) {
+  const tid = (tenantId || DEFAULT_TENANT_ID).toLowerCase();
+  const base = {
+    menuItems: "songhwa_menu_items",
+    menuSets: "songhwa_menu_sets",
+    promos: "songhwa_promos",
+    faqs: "songhwa_faqs",
+    examples: "songhwa_voice_examples",
+    photos: "songhwa_dish_photos",
+    summary: "songhwa_menu_cache",
+    syncStatus: "songhwa_sync_status",
+  } as const;
+  // Default tenant or any non-conforming slug → existing Songhwa names verbatim.
+  if (tid === DEFAULT_TENANT_ID || !isValidSlug(tid)) return base;
+  return Object.fromEntries(
+    Object.entries(base).map(([k, v]) => [k, v.replace(/^songhwa_/, `${tid}_`)]),
+  ) as Record<keyof typeof base, string>;
+}
+
+// Back-compat: importers that don't yet pass a tenant keep compiling and behave
+// identically for Songhwa.
+export const MENU_COLLECTIONS = menuCollections(DEFAULT_TENANT_ID);
 
 // ── Malaysia-timezone helper for promo filtering ──────────────
 interface KlClock {
@@ -53,25 +75,52 @@ export function getKlNow(now: Date = new Date()): KlClock {
 }
 
 // ── Upsert helpers (source of truth: Google Sheet → Firestore) ─
-export async function upsertMenuItem(item: MenuItem): Promise<void> {
-  await getDb().collection(MENU_COLLECTIONS.menuItems).doc(item.id).set(item);
-}
-
-export async function upsertMenuSet(set: MenuSet): Promise<void> {
-  await getDb().collection(MENU_COLLECTIONS.menuSets).doc(set.id).set(set);
-}
-
-export async function upsertPromo(promo: Promo): Promise<void> {
-  await getDb().collection(MENU_COLLECTIONS.promos).doc(promo.id).set(promo);
-}
-
-export async function upsertFaq(faq: Faq): Promise<void> {
-  await getDb().collection(MENU_COLLECTIONS.faqs).doc(faq.id).set(faq);
-}
-
-export async function upsertExample(example: VoiceExample): Promise<void> {
+export async function upsertMenuItem(
+  item: MenuItem,
+  tenantId: string = DEFAULT_TENANT_ID,
+): Promise<void> {
   await getDb()
-    .collection(MENU_COLLECTIONS.examples)
+    .collection(menuCollections(tenantId).menuItems)
+    .doc(item.id)
+    .set(item);
+}
+
+export async function upsertMenuSet(
+  set: MenuSet,
+  tenantId: string = DEFAULT_TENANT_ID,
+): Promise<void> {
+  await getDb()
+    .collection(menuCollections(tenantId).menuSets)
+    .doc(set.id)
+    .set(set);
+}
+
+export async function upsertPromo(
+  promo: Promo,
+  tenantId: string = DEFAULT_TENANT_ID,
+): Promise<void> {
+  await getDb()
+    .collection(menuCollections(tenantId).promos)
+    .doc(promo.id)
+    .set(promo);
+}
+
+export async function upsertFaq(
+  faq: Faq,
+  tenantId: string = DEFAULT_TENANT_ID,
+): Promise<void> {
+  await getDb()
+    .collection(menuCollections(tenantId).faqs)
+    .doc(faq.id)
+    .set(faq);
+}
+
+export async function upsertExample(
+  example: VoiceExample,
+  tenantId: string = DEFAULT_TENANT_ID,
+): Promise<void> {
+  await getDb()
+    .collection(menuCollections(tenantId).examples)
     .doc(example.id)
     .set(example);
 }
@@ -89,25 +138,31 @@ export async function markInactive(
 }
 
 // ── Read helpers ──────────────────────────────────────────────
-export async function getAllActiveMenuItems(): Promise<MenuItem[]> {
+export async function getAllActiveMenuItems(
+  tenantId: string = DEFAULT_TENANT_ID,
+): Promise<MenuItem[]> {
   const snapshot = await getDb()
-    .collection(MENU_COLLECTIONS.menuItems)
+    .collection(menuCollections(tenantId).menuItems)
     .where("isActive", "==", true)
     .get();
   return snapshot.docs.map((d) => d.data() as MenuItem);
 }
 
-export async function getAllActiveSets(): Promise<MenuSet[]> {
+export async function getAllActiveSets(
+  tenantId: string = DEFAULT_TENANT_ID,
+): Promise<MenuSet[]> {
   const snapshot = await getDb()
-    .collection(MENU_COLLECTIONS.menuSets)
+    .collection(menuCollections(tenantId).menuSets)
     .where("isActive", "==", true)
     .get();
   return snapshot.docs.map((d) => d.data() as MenuSet);
 }
 
-export async function getAllActiveFaqs(): Promise<Faq[]> {
+export async function getAllActiveFaqs(
+  tenantId: string = DEFAULT_TENANT_ID,
+): Promise<Faq[]> {
   const snapshot = await getDb()
-    .collection(MENU_COLLECTIONS.faqs)
+    .collection(menuCollections(tenantId).faqs)
     .where("isActive", "==", true)
     .get();
   return snapshot.docs
@@ -118,10 +173,11 @@ export async function getAllActiveFaqs(): Promise<Faq[]> {
 // Filter promos by date/day/time window in Malaysia time
 export async function getActivePromos(
   now: Date = new Date(),
+  tenantId: string = DEFAULT_TENANT_ID,
 ): Promise<Promo[]> {
   const clock = getKlNow(now);
   const snapshot = await getDb()
-    .collection(MENU_COLLECTIONS.promos)
+    .collection(menuCollections(tenantId).promos)
     .where("isActive", "==", true)
     .get();
   const all = snapshot.docs.map((d) => d.data() as Promo);
@@ -141,11 +197,14 @@ export async function getActivePromos(
 }
 
 // ── Search: in-memory filter, cheap for < 500 items ───────────
-export async function searchMenu(query: string): Promise<MenuItem[]> {
+export async function searchMenu(
+  query: string,
+  tenantId: string = DEFAULT_TENANT_ID,
+): Promise<MenuItem[]> {
   const needle = query.toLowerCase().trim();
   if (!needle) return [];
 
-  const all = await getAllActiveMenuItems();
+  const all = await getAllActiveMenuItems(tenantId);
   const scored = all
     .map((item) => ({ item, score: scoreMatch(item, needle) }))
     .filter((r) => r.score > 0)
@@ -182,15 +241,19 @@ export type DishLookupResult =
   | { kind: "set"; data: MenuSet }
   | { kind: "none" };
 
-export async function getDishById(id: string): Promise<DishLookupResult> {
+export async function getDishById(
+  id: string,
+  tenantId: string = DEFAULT_TENANT_ID,
+): Promise<DishLookupResult> {
   const db = getDb();
+  const cols = menuCollections(tenantId);
 
-  const itemDoc = await db.collection(MENU_COLLECTIONS.menuItems).doc(id).get();
+  const itemDoc = await db.collection(cols.menuItems).doc(id).get();
   if (itemDoc.exists) {
     return { kind: "item", data: itemDoc.data() as MenuItem };
   }
 
-  const setDoc = await db.collection(MENU_COLLECTIONS.menuSets).doc(id).get();
+  const setDoc = await db.collection(cols.menuSets).doc(id).get();
   if (setDoc.exists) {
     return { kind: "set", data: setDoc.data() as MenuSet };
   }
@@ -199,11 +262,15 @@ export async function getDishById(id: string): Promise<DishLookupResult> {
 }
 
 // ── FAQ lookup by keyword (simple OR match) ───────────────────
-export async function findFaqs(query: string, limit: number = 3): Promise<Faq[]> {
+export async function findFaqs(
+  query: string,
+  limit: number = 3,
+  tenantId: string = DEFAULT_TENANT_ID,
+): Promise<Faq[]> {
   const needle = query.toLowerCase().trim();
   if (!needle) return [];
 
-  const all = await getAllActiveFaqs();
+  const all = await getAllActiveFaqs(tenantId);
   return all
     .filter((f) => {
       const haystack = [
@@ -223,32 +290,40 @@ const COMPACT_DOC_ID = "latest";
 
 export async function saveCompactSummary(
   summary: CompactMenuSummary,
+  tenantId: string = DEFAULT_TENANT_ID,
 ): Promise<void> {
   await getDb()
-    .collection(MENU_COLLECTIONS.summary)
+    .collection(menuCollections(tenantId).summary)
     .doc(COMPACT_DOC_ID)
     .set(summary);
 }
 
-export async function getCompactSummary(): Promise<CompactMenuSummary | null> {
+export async function getCompactSummary(
+  tenantId: string = DEFAULT_TENANT_ID,
+): Promise<CompactMenuSummary | null> {
   const doc = await getDb()
-    .collection(MENU_COLLECTIONS.summary)
+    .collection(menuCollections(tenantId).summary)
     .doc(COMPACT_DOC_ID)
     .get();
   return doc.exists ? (doc.data() as CompactMenuSummary) : null;
 }
 
 // ── Sync status (for observability) ───────────────────────────
-export async function saveSyncStatus(status: SyncStatus): Promise<void> {
+export async function saveSyncStatus(
+  status: SyncStatus,
+  tenantId: string = DEFAULT_TENANT_ID,
+): Promise<void> {
   await getDb()
-    .collection(MENU_COLLECTIONS.syncStatus)
+    .collection(menuCollections(tenantId).syncStatus)
     .doc("latest")
     .set(status);
 }
 
-export async function getSyncStatus(): Promise<SyncStatus | null> {
+export async function getSyncStatus(
+  tenantId: string = DEFAULT_TENANT_ID,
+): Promise<SyncStatus | null> {
   const doc = await getDb()
-    .collection(MENU_COLLECTIONS.syncStatus)
+    .collection(menuCollections(tenantId).syncStatus)
     .doc("latest")
     .get();
   return doc.exists ? (doc.data() as SyncStatus) : null;

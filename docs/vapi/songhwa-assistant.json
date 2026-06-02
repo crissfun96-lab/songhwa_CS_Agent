@@ -9,12 +9,23 @@
     "provider": "deepgram",
     "model": "nova-3",
     "language": "multi",
-    "endpointing": 600
+    "endpointing": 300
   },
   "voice": {
     "provider": "cartesia",
     "voiceId": "729651dc-c6c3-4ee5-97fa-350da1f88600",
     "model": "sonic-2"
+  },
+  "backchannelingEnabled": true,
+  "backgroundDenoisingEnabled": true,
+  "startSpeakingPlan": {
+    "waitSeconds": 0.4,
+    "smartEndpointingPlan": { "provider": "livekit" }
+  },
+  "stopSpeakingPlan": {
+    "numWords": 2,
+    "voiceSeconds": 0.2,
+    "backoffSeconds": 1
   },
   "model": {
     "provider": "google",
@@ -281,7 +292,8 @@
   },
   "_notes": {
     "replace_before_save": "Replace ALL instances of REPLACE_WITH_VAPI_SERVER_SECRET with the random string set in Vercel env var VAPI_SERVER_SECRET.",
-    "voice_choice": "Cartesia Sonic-2 voiceId 729651dc-c6c3-4ee5-97fa-350da1f88600 is a warm Malaysian-tolerant female. Swap voiceId via Vapi voice library if you prefer different.",
+    "voice_choice": "Cartesia Sonic-2 voiceId 729651dc-c6c3-4ee5-97fa-350da1f88600 is a warm Malaysian-tolerant female. For a different feel, audition ElevenLabs 'Flash v2.5' voices or other Cartesia voices in the Vapi voice library.",
+    "turn_taking": "startSpeakingPlan.waitSeconds 0.4 + smartEndpointingPlan + stopSpeakingPlan + backchanneling were added so turn-taking feels human (less talk-over, less dead air). transcriber.endpointing lowered 600->300 since smart endpointing now handles end-of-turn. If your Vapi plan rejects smartEndpointingPlan, replace it with \"smartEndpointingEnabled\": true.",
     "model_choice": "gemini-2.0-flash is the fastest text+function-calling Gemini that Vapi supports today. When Vapi adds gemini-3.x flash-live, swap the model line. Most multi-turn convs are <800 output tokens so the cap is generous.",
     "transcriber_language": "Deepgram Nova-3 multi handles EN + 中文 + BM seamlessly. For deeper Malay accuracy in production, swap provider to Mesolitica when Vapi adds them (or use the cascade upgrade path in voice-stack-alternatives.md)."
   }

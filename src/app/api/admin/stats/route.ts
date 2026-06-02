@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/firebase-admin";
-import { MENU_COLLECTIONS } from "@/lib/menu/firestore";
+import { menuCollections } from "@/lib/menu/firestore";
+import { resolveTenantId } from "@/lib/tenants/resolver";
+import { tc } from "@/lib/tenants/collection";
 
 // Aggregated counts for the admin dashboard landing page
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const db = getDb();
+    const tenantId = resolveTenantId(request);
+    const cols = menuCollections(tenantId);
     const today = new Date().toISOString().slice(0, 10);
 
     const [
@@ -16,12 +20,12 @@ export async function GET() {
       complaintSnap,
       callbackSnap,
     ] = await Promise.all([
-      db.collection(MENU_COLLECTIONS.menuItems).get(),
-      db.collection(MENU_COLLECTIONS.menuSets).get(),
-      db.collection(MENU_COLLECTIONS.promos).get(),
-      db.collection("songhwa_reservations").orderBy("createdAt", "desc").limit(100).get(),
-      db.collection("songhwa_complaints").orderBy("createdAt", "desc").limit(100).get(),
-      db.collection("songhwa_callbacks").orderBy("createdAt", "desc").limit(100).get(),
+      db.collection(cols.menuItems).get(),
+      db.collection(cols.menuSets).get(),
+      db.collection(cols.promos).get(),
+      db.collection(tc(tenantId, "reservations")).orderBy("createdAt", "desc").limit(100).get(),
+      db.collection(tc(tenantId, "complaints")).orderBy("createdAt", "desc").limit(100).get(),
+      db.collection(tc(tenantId, "callbacks")).orderBy("createdAt", "desc").limit(100).get(),
     ]);
 
     const activeMenu = menuSnap.docs.filter((d) => d.data().isActive).length;

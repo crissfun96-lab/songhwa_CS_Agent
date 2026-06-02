@@ -1,21 +1,23 @@
 import { NextResponse } from "next/server";
 import { z } from "zod/v4";
 import { getDb } from "@/lib/firebase-admin";
-import { MENU_COLLECTIONS } from "@/lib/menu/firestore";
+import { menuCollections } from "@/lib/menu/firestore";
 import { buildCompactSummary } from "@/lib/menu/prompt-injector";
+import { resolveTenantId } from "@/lib/tenants/resolver";
 import type { MenuItem } from "@/lib/menu/types";
 
-function refreshCache() {
-  buildCompactSummary().catch((err) =>
+function refreshCache(tenantId: string) {
+  buildCompactSummary(tenantId).catch((err) =>
     console.error("[admin] cache rebuild failed:", err),
   );
 }
 
 // GET /api/admin/menu — list ALL items (including inactive)
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const tenantId = resolveTenantId(request);
     const snapshot = await getDb()
-      .collection(MENU_COLLECTIONS.menuItems)
+      .collection(menuCollections(tenantId).menuItems)
       .get();
     const items = snapshot.docs
       .map((d) => d.data() as MenuItem)
@@ -47,6 +49,7 @@ const CreateSchema = z.object({
 
 export async function POST(request: Request) {
   try {
+    const tenantId = resolveTenantId(request);
     const body = await request.json();
     const parsed = CreateSchema.parse(body);
 
@@ -71,10 +74,10 @@ export async function POST(request: Request) {
     };
 
     await getDb()
-      .collection(MENU_COLLECTIONS.menuItems)
+      .collection(menuCollections(tenantId).menuItems)
       .doc(item.id)
       .set(item);
-    refreshCache();
+    refreshCache(tenantId);
 
     return NextResponse.json({ success: true, data: item });
   } catch (error) {

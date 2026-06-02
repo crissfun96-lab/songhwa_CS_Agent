@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { getActivePromos } from "@/lib/menu/firestore";
+import { resolveTenantId } from "@/lib/tenants/resolver";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const promos = await getActivePromos();
+    const tenantId = resolveTenantId(request);
+    const promos = await getActivePromos(new Date(), tenantId);
     return NextResponse.json({
       success: true,
       data: promos.map((p) => ({

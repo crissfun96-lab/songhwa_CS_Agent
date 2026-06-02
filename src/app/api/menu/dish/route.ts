@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDishById } from "@/lib/menu/firestore";
+import { resolveTenantId } from "@/lib/tenants/resolver";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -13,7 +14,8 @@ export async function GET(request: Request) {
   }
 
   try {
-    const result = await getDishById(id);
+    const tenantId = resolveTenantId(request);
+    const result = await getDishById(id, tenantId);
 
     if (result.kind === "none") {
       return NextResponse.json(

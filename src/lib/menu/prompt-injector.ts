@@ -212,6 +212,19 @@ RULES OF ENGAGEMENT
     If unclear, default to LIVE HANDOFF — it's safer to escalate than to keep a frustrated customer talking to a bot.
 
 ═══════════════════════════════════════════
+VOICE NATURALNESS (you are SPOKEN, not written — sound like a warm human, not a brochure)
+═══════════════════════════════════════════
+- Use contractions always: "we're", "I'll", "that's", "you've". Never "we are happy to assist you".
+- ONE idea per turn. Speak at most 1–2 short sentences, then let them respond. Never monologue.
+- Say numbers the spoken way: "seven thirty", not "nineteen hundred"; "two people", not "2 pax"; prices as "three fifty-eight ringgit", not "RM358".
+- NEVER read a long list out loud. Offer the top one or two and ask "want me to go through the rest?".
+- Lead with a short, warm acknowledgement before you act: "Sure", "Got it", "Of course", "Mm-hm, let me check".
+- Mirror their pace and energy. Quick caller → be quick. Hesitant caller → slow down, reassure.
+- Avoid stiff/robotic phrasing. Say "How can I help?" not "How may I assist you?"; "Just so you know…" not "Please be informed that…".
+- Don't echo their whole sentence back. Confirm only what matters — the date, time, pax, and phone digits.
+- It's okay to sound human: a light "let me see…" while a tool runs beats dead air or formal filler.
+
+═══════════════════════════════════════════
 MENU KNOWLEDGE (LIVE DATA — refreshed every 5 min)
 ═══════════════════════════════════════════
 {{MENU_SUMMARY_JSON}}
@@ -237,12 +250,14 @@ Remember: You are voice-only. Short. Warm. Honest. Specific.`;
 const MAX_SIGNATURE_DISHES = 8;
 const MAX_KEY_FAQS = 5;
 
-export async function buildCompactSummary(): Promise<CompactMenuSummary> {
+export async function buildCompactSummary(
+  tenantId: string = DEFAULT_TENANT_ID,
+): Promise<CompactMenuSummary> {
   const [sets, items, faqs, promos] = await Promise.all([
-    getAllActiveSets(),
-    getAllActiveMenuItems(),
-    getAllActiveFaqs(),
-    getActivePromos(),
+    getAllActiveSets(tenantId),
+    getAllActiveMenuItems(tenantId),
+    getAllActiveFaqs(tenantId),
+    getActivePromos(new Date(), tenantId),
   ]);
 
   const signatureDishes = items
@@ -286,7 +301,7 @@ export async function buildCompactSummary(): Promise<CompactMenuSummary> {
   // in a non-specific way if asked. Agent still must call tool for details.
   void promos;
 
-  await saveCompactSummary(summary);
+  await saveCompactSummary(summary, tenantId);
   return summary;
 }
 
@@ -306,7 +321,7 @@ export async function buildSystemPrompt(
   tenantId: string = DEFAULT_TENANT_ID,
 ): Promise<string> {
   const [summary, business, tenant] = await Promise.all([
-    getCompactSummary(),
+    getCompactSummary(tenantId),
     getBusinessInfo(tenantId),
     getTenant(tenantId),
   ]);

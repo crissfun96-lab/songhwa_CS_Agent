@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod/v4";
 import { getDb } from "@/lib/firebase-admin";
-import { MENU_COLLECTIONS } from "@/lib/menu/firestore";
+import { menuCollections } from "@/lib/menu/firestore";
 import { buildCompactSummary } from "@/lib/menu/prompt-injector";
+import { resolveTenantId } from "@/lib/tenants/resolver";
 
 // After any admin write, rebuild the compact summary cache so the agent
 // sees the updated data on the next session. Fire-and-forget — don't block.
-function refreshCache() {
-  buildCompactSummary().catch((err) =>
+function refreshCache(tenantId: string) {
+  buildCompactSummary(tenantId).catch((err) =>
     console.error("[admin] cache rebuild failed:", err),
   );
 }
@@ -31,12 +32,13 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const tenantId = resolveTenantId(request);
     const { id } = await params;
     const body = await request.json();
     const parsed = UpdateSchema.parse(body);
 
     const db = getDb();
-    const docRef = db.collection(MENU_COLLECTIONS.menuItems).doc(id);
+    const docRef = db.collection(menuCollections(tenantId).menuItems).doc(id);
     const doc = await docRef.get();
 
     if (!doc.exists) {
@@ -64,7 +66,7 @@ export async function PATCH(
     if (parsed.tags !== undefined) updates.tags = parsed.tags;
 
     await docRef.update(updates);
-    refreshCache();
+    refreshCache(tenantId);
 
     const updated = await docRef.get();
     return NextResponse.json({ success: true, data: updated.data() });
@@ -83,20 +85,21 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const tenantId = resolveTenantId(request);
     const { id } = await params;
     await getDb()
-      .collection(MENU_COLLECTIONS.menuItems)
+      .collection(menuCollections(tenantId).menuItems)
       .doc(id)
       .update({
         isActive: false,
         updatedAt: new Date().toISOString(),
         sourceVersion: `admin-${Date.now()}`,
       });
-    refreshCache();
+    refreshCache(tenantId);
     return NextResponse.json({ success: true });
   } catch (error) {
     return NextResponse.json(

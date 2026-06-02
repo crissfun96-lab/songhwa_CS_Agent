@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { syncAll } from "@/lib/menu/sheet-sync";
 import { buildCompactSummary } from "@/lib/menu/prompt-injector";
+import { resolveTenantId } from "@/lib/tenants/resolver";
 
 // Cron-triggered sync. Protected by CRON_SECRET header (Vercel Cron sets this).
 // Manual trigger: POST with { "secret": "..." } in body.
@@ -34,8 +35,14 @@ export async function POST(request: Request) {
   }
 
   try {
-    const syncResult = await syncAll({ spreadsheetId, apiKey });
-    const summary = await buildCompactSummary();
+    // Tenant-scoped sync. On the Vercel cron (main domain) this resolves to the
+    // default tenant (Songhwa); a tenant subdomain / internal-secret routes to theirs.
+    // NOTE: Sheet credentials are still global env today — wiring per-tenant Sheet
+    // creds (tenant.googleSheetsId / googleSheetsApiKey) is the follow-up before a
+    // 2nd tenant's live sync; until then only the default tenant should trigger this.
+    const tenantId = resolveTenantId(request);
+    const syncResult = await syncAll({ spreadsheetId, apiKey }, tenantId);
+    const summary = await buildCompactSummary(tenantId);
 
     return NextResponse.json({
       success: true,

@@ -1,19 +1,21 @@
 import { NextResponse } from "next/server";
 import { z } from "zod/v4";
 import { getDb } from "@/lib/firebase-admin";
-import { MENU_COLLECTIONS } from "@/lib/menu/firestore";
+import { menuCollections } from "@/lib/menu/firestore";
 import { buildCompactSummary } from "@/lib/menu/prompt-injector";
+import { resolveTenantId } from "@/lib/tenants/resolver";
 import type { Promo } from "@/lib/menu/types";
 
-function refreshCache() {
-  buildCompactSummary().catch((err) =>
+function refreshCache(tenantId: string) {
+  buildCompactSummary(tenantId).catch((err) =>
     console.error("[admin] cache rebuild failed:", err),
   );
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const snapshot = await getDb().collection(MENU_COLLECTIONS.promos).get();
+    const tenantId = resolveTenantId(request);
+    const snapshot = await getDb().collection(menuCollections(tenantId).promos).get();
     const promos = snapshot.docs
       .map((d) => d.data() as Promo)
       .sort((a, b) => a.endDate.localeCompare(b.endDate));
@@ -44,6 +46,7 @@ const CreateSchema = z.object({
 
 export async function POST(request: Request) {
   try {
+    const tenantId = resolveTenantId(request);
     const body = await request.json();
     const parsed = CreateSchema.parse(body);
 
@@ -76,10 +79,10 @@ export async function POST(request: Request) {
     };
 
     await getDb()
-      .collection(MENU_COLLECTIONS.promos)
+      .collection(menuCollections(tenantId).promos)
       .doc(promo.id)
       .set(promo);
-    refreshCache();
+    refreshCache(tenantId);
 
     return NextResponse.json({ success: true, data: promo });
   } catch (error) {

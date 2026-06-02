@@ -746,17 +746,21 @@ export default function SonghwaAgentPage() {
               responseModalities: ["AUDIO"],
               speechConfig: {
                 voiceConfig: {
-                  prebuiltVoiceConfig: { voiceName: "Kore" },
+                  prebuiltVoiceConfig: { voiceName: "Aoede" }, // warm female host. Swap: "Leda" (youthful), "Kore" (firm/neutral), "Puck" (upbeat).
                 },
               },
             },
             realtimeInputConfig: {
               automaticActivityDetection: {
                 disabled: false,
+                // Snappier turn-taking: END_SENSITIVITY_HIGH + ~600ms silence make
+                // the agent reply ~0.4s sooner — kills the laggy "dead air" before
+                // every response that made the voice feel robotic. START stays LOW so
+                // background noise doesn't trigger false barge-ins mid-sentence.
                 startOfSpeechSensitivity: "START_SENSITIVITY_LOW",
-                endOfSpeechSensitivity: "END_SENSITIVITY_LOW",
+                endOfSpeechSensitivity: "END_SENSITIVITY_HIGH",
                 prefixPaddingMs: 100,
-                silenceDurationMs: 1000,
+                silenceDurationMs: 600,
               },
             },
             systemInstruction: {

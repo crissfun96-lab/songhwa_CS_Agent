@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { searchMenu } from "@/lib/menu/firestore";
+import { resolveTenantId } from "@/lib/tenants/resolver";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -13,7 +14,8 @@ export async function GET(request: Request) {
   }
 
   try {
-    const results = await searchMenu(query);
+    const tenantId = resolveTenantId(request);
+    const results = await searchMenu(query, tenantId);
     return NextResponse.json({
       success: true,
       data: results.map((item) => ({
