@@ -60,12 +60,23 @@ export interface TenantBusinessInfo {
   hoursText?: string;                        // "Mon-Sun 11:30-15:00, 17:30-22:00"
 }
 
+// Per-tenant booking capacity overrides (admin-editable). All optional — any unset
+// field falls back to the availability engine's DEFAULT_CAPACITY, so an empty/absent
+// object means "use the defaults" (Songhwa's original hardcoded values).
+export interface TenantCapacity {
+  lunchCap?: number;            // max concurrent pax during the lunch service
+  dinnerCap?: number;           // max concurrent pax during the dinner service
+  lunchTurnMinutes?: number;    // how long a lunch table is held
+  dinnerTurnMinutes?: number;   // how long a dinner table is held
+}
+
 export interface Tenant {
   id: string;                                // "songhwa" / "acme" — lowercase, URL-safe
   slug: string;                              // same as id, kept for clarity
   status: TenantStatus;
   tier: TenantTier;
   customLimits?: Partial<TenantLimits>;      // override TIER_LIMITS per-tenant
+  capacity?: TenantCapacity;                 // override booking caps + turn times
   trialEndsAt?: string;                      // ISO; for trial tenants
 
   business: TenantBusinessInfo;

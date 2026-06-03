@@ -7,7 +7,12 @@ import type {
   Reservation,
   ReservationModification,
 } from "../types";
-import { checkAvailability, isCapacityExceeded, normalizeTime } from "./availability";
+import {
+  checkAvailability,
+  isCapacityExceeded,
+  normalizeTime,
+  resolveCapacityConfig,
+} from "./availability";
 
 // ── Normalize phone for matching ──────────────────────────────
 // Canonical form: always starts with "0" (Malaysian mobile format).
@@ -145,6 +150,10 @@ export async function updateReservation(input: UpdateInput): Promise<UpdateResul
     !input.skipAvailabilityCheck &&
     ("date" in changes || "time" in changes || "pax" in changes);
 
+  // Resolve the tenant's capacity config ONCE so the pre-check and the in-transaction
+  // re-check use the SAME snapshot (only needed when the move affects capacity).
+  const capacity = needsCapacityCheck ? await resolveCapacityConfig(tid) : undefined;
+
   // Pre-flight check — fast, friendly error + alternatives BEFORE we attempt the write.
   // (The authoritative re-check happens inside the transaction below.)
   if (needsCapacityCheck) {
@@ -155,6 +164,7 @@ export async function updateReservation(input: UpdateInput): Promise<UpdateResul
       newState.pax,
       input.id,
       tid,
+      capacity,
     );
     if (!avail.available) {
       return {
@@ -201,7 +211,7 @@ export async function updateReservation(input: UpdateInput): Promise<UpdateResul
           db.collection(tc(tid, "reservations")).where("date", "==", newState.date),
         );
         const dayReservations = daySnap.docs.map((d) => d.data() as Reservation);
-        if (isCapacityExceeded(dayReservations, newState.time, newState.pax, input.id)) {
+        if (isCapacityExceeded(dayReservations, newState.time, newState.pax, input.id, capacity)) {
           throw new Error("race_detected");
         }
       }
@@ -216,6 +226,7 @@ export async function updateReservation(input: UpdateInput): Promise<UpdateResul
         newState.pax,
         input.id,
         tid,
+        capacity,
       );
       const alternatives =
         !recheck.available && recheck.reason === "fully_booked" ? recheck.alternatives : [];

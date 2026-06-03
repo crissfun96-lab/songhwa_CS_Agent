@@ -8,6 +8,7 @@ import {
   findRecentDuplicate,
   isCapacityExceeded,
   normalizeTime,
+  resolveCapacityConfig,
 } from "@/lib/reservations/availability";
 import { resolveDate } from "@/lib/reservations/date-resolver";
 import { markDraftConverted } from "@/lib/reservations/intent";
@@ -156,6 +157,11 @@ export async function POST(request: Request): Promise<NextResponse<CreateReserva
     const reservationId = `res_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const reservationRef = db.collection(COLLECTION).doc(reservationId);
 
+    // Resolve the tenant's capacity config ONCE (outside the txn) and use the SAME
+    // snapshot for the pre-check AND the in-transaction re-check below — so they
+    // can't disagree even if an admin edits capacity mid-request.
+    const capacity = await resolveCapacityConfig(tenantId);
+
     // First: check availability (can't be inside transaction because of complex query)
     const availability = await checkAvailability(
       date,
@@ -163,6 +169,7 @@ export async function POST(request: Request): Promise<NextResponse<CreateReserva
       parsed.pax,
       undefined,
       tenantId,
+      capacity,
     );
     if (!availability.available) {
       return NextResponse.json(
@@ -245,7 +252,7 @@ export async function POST(request: Request): Promise<NextResponse<CreateReserva
         throw new Error("concurrent_duplicate");
       }
 
-      if (isCapacityExceeded(dayReservations, parsed.time, parsed.pax)) {
+      if (isCapacityExceeded(dayReservations, parsed.time, parsed.pax, undefined, capacity)) {
         throw new Error("race_detected");
       }
 

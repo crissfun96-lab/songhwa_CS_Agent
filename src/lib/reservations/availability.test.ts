@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { isCapacityExceeded } from "./availability";
+import {
+  isCapacityExceeded,
+  sanitizeCapacity,
+  DEFAULT_CAPACITY,
+  type CapacityConfig,
+} from "./availability";
 import type { Reservation } from "../types";
 
 // ── Turn-time capacity model ──────────────────────────────────────────────
@@ -143,6 +148,62 @@ describe("isCapacityExceeded — reschedule semantics (exclude-self, used by the
     expect(isCapacityExceeded(day, "7:00 PM", 80, "resv")).toBe(true);
     // 40 + 60 = 100 → keeping pax the same is fine.
     expect(isCapacityExceeded(day, "7:00 PM", 60, "resv")).toBe(false);
+  });
+});
+
+describe("sanitizeCapacity — merges overrides onto defaults, fails safe per field", () => {
+  it("returns the defaults for null/undefined/empty input", () => {
+    expect(sanitizeCapacity(undefined)).toEqual(DEFAULT_CAPACITY);
+    expect(sanitizeCapacity(null)).toEqual(DEFAULT_CAPACITY);
+    expect(sanitizeCapacity({})).toEqual(DEFAULT_CAPACITY);
+  });
+
+  it("applies a partial override and keeps defaults for the rest", () => {
+    expect(sanitizeCapacity({ dinnerCap: 150 })).toEqual({
+      ...DEFAULT_CAPACITY,
+      dinnerCap: 150,
+    });
+  });
+
+  it("rejects bad values per field (0, negative, NaN, non-number) → default stands", () => {
+    expect(sanitizeCapacity({ lunchCap: 0 }).lunchCap).toBe(DEFAULT_CAPACITY.lunchCap);
+    expect(sanitizeCapacity({ dinnerCap: -10 }).dinnerCap).toBe(DEFAULT_CAPACITY.dinnerCap);
+    expect(sanitizeCapacity({ lunchTurnMinutes: NaN }).lunchTurnMinutes).toBe(DEFAULT_CAPACITY.lunchTurnMinutes);
+    // a stringy value (untrusted Firestore data) must not slip through
+    expect(sanitizeCapacity({ dinnerCap: "200" as unknown as number }).dinnerCap).toBe(DEFAULT_CAPACITY.dinnerCap);
+  });
+
+  it("floors fractional values", () => {
+    expect(sanitizeCapacity({ dinnerCap: 120.9 }).dinnerCap).toBe(120);
+  });
+
+  it("accepts a full valid override", () => {
+    const cfg = { lunchCap: 40, dinnerCap: 60, lunchTurnMinutes: 75, dinnerTurnMinutes: 150 };
+    expect(sanitizeCapacity(cfg)).toEqual(cfg);
+  });
+});
+
+describe("isCapacityExceeded — honours a custom (per-tenant) capacity config", () => {
+  const smallRoom: CapacityConfig = { ...DEFAULT_CAPACITY, dinnerCap: 50 };
+
+  it("uses the custom dinner cap", () => {
+    expect(isCapacityExceeded([], "7:00 PM", 50, undefined, smallRoom)).toBe(false);
+    expect(isCapacityExceeded([], "7:00 PM", 51, undefined, smallRoom)).toBe(true);
+  });
+
+  it("uses the custom turn time to widen/narrow overlap", () => {
+    // Shorter 60-min dinner turn: a 19:00 booking holds [19:00,20:00), so a 20:00 booking
+    // no longer overlaps and a full second seating is allowed — which the DEFAULT 120-min
+    // turn would have blocked.
+    const shortTurn: CapacityConfig = { ...DEFAULT_CAPACITY, dinnerTurnMinutes: 60 };
+    const day = [res("7:00 PM", 100, { id: "a" })];
+    expect(isCapacityExceeded(day, "8:00 PM", 100, undefined, shortTurn)).toBe(false); // custom: no overlap
+    expect(isCapacityExceeded(day, "8:00 PM", 100, undefined, DEFAULT_CAPACITY)).toBe(true); // default 120m: overlaps
+  });
+
+  it("defaults to DEFAULT_CAPACITY when no config is passed (backward-compatible)", () => {
+    expect(isCapacityExceeded([], "7:00 PM", 100)).toBe(false);
+    expect(isCapacityExceeded([], "7:00 PM", 101)).toBe(true);
   });
 });
 

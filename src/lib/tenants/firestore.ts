@@ -3,6 +3,7 @@ import {
   DEFAULT_TENANT_ID,
   TIER_LIMITS,
   type Tenant,
+  type TenantCapacity,
   type TenantStatus,
   type TenantTier,
 } from "./types";
@@ -173,6 +174,23 @@ export async function updateTenant(
     ...patch,
     updatedAt: new Date().toISOString(),
   });
+  cache.delete(tid);
+}
+
+// Replace the tenant's booking-capacity overrides (admin-editable). The caller is
+// responsible for merging onto existing overrides if it wants PATCH semantics; this
+// writes the `capacity` map wholesale. Requires the tenant doc to exist (the route
+// guarantees this). Invalidates the local cache so new caps apply immediately on this
+// container; other containers refresh within the TTL.
+export async function updateTenantCapacity(
+  tenantId: string,
+  capacity: TenantCapacity,
+): Promise<void> {
+  const tid = tenantId.toLowerCase();
+  await getDb()
+    .collection(COLLECTION)
+    .doc(tid)
+    .update({ capacity, updatedAt: new Date().toISOString() });
   cache.delete(tid);
 }
 

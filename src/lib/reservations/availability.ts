@@ -5,22 +5,60 @@
 // concurrent pax across the new booking's window stays within the service cap. This
 // replaces the old per-30-min-bucket model, which let a 7pm party "free" its seats at
 // 7:30 and oversell a single service many times over.
-// Chris can tune caps + turn times per his real table layout.
+// Caps + turn times are per-tenant (admin-editable, stored on the tenant doc) with the
+// values below as defaults — so Songhwa's behavior is unchanged when nothing is set.
 
 import { getDb } from "../firebase-admin";
 import { tc } from "../tenants/collection";
 import { DEFAULT_TENANT_ID } from "../tenants/types";
+import { getTenant } from "../tenants/firestore";
 import type { Reservation } from "../types";
 import { resolveDate } from "./date-resolver";
 
-// Capacity rules — tune these per Chris's real floor plan.
-// In a multi-tenant world these would live on the tenant doc.
-const CAPACITY = {
-  lunchCap: 80,            // 11:30–15:00 — max concurrent pax
-  dinnerCap: 100,          // 17:30–22:00
-  lunchTurnMinutes: 90,    // how long a lunch table stays occupied
-  dinnerTurnMinutes: 120,  // dinner sits longer
+// Per-service capacity + table-turn configuration.
+export interface CapacityConfig {
+  lunchCap: number;            // 11:30–15:00 — max concurrent pax
+  dinnerCap: number;           // 17:30–22:00
+  lunchTurnMinutes: number;    // how long a lunch table stays occupied
+  dinnerTurnMinutes: number;   // dinner sits longer
+}
+
+// Songhwa's original hardcoded values — the default when a tenant sets no override.
+export const DEFAULT_CAPACITY: CapacityConfig = {
+  lunchCap: 80,
+  dinnerCap: 100,
+  lunchTurnMinutes: 90,
+  dinnerTurnMinutes: 120,
 };
+
+// Merge a tenant's (possibly partial / untrusted) overrides onto the defaults,
+// field-by-field. Each value must be a positive finite number, else the default for
+// that field stands — so one bad/missing field never breaks the whole capacity model.
+export function sanitizeCapacity(
+  raw: Partial<CapacityConfig> | null | undefined,
+): CapacityConfig {
+  const pick = (v: unknown, d: number): number =>
+    typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.floor(v) : d;
+  return {
+    lunchCap: pick(raw?.lunchCap, DEFAULT_CAPACITY.lunchCap),
+    dinnerCap: pick(raw?.dinnerCap, DEFAULT_CAPACITY.dinnerCap),
+    lunchTurnMinutes: pick(raw?.lunchTurnMinutes, DEFAULT_CAPACITY.lunchTurnMinutes),
+    dinnerTurnMinutes: pick(raw?.dinnerTurnMinutes, DEFAULT_CAPACITY.dinnerTurnMinutes),
+  };
+}
+
+// Resolve the effective capacity config for a tenant (reads the cached tenant doc).
+// Falls back to defaults on any error / missing tenant — capacity must never throw.
+export async function resolveCapacityConfig(
+  tenantId: string = DEFAULT_TENANT_ID,
+): Promise<CapacityConfig> {
+  try {
+    const tenant = await getTenant(tenantId);
+    return sanitizeCapacity(tenant?.capacity);
+  } catch {
+    return { ...DEFAULT_CAPACITY };
+  }
+}
 
 // ── Time helpers ───────────────────────────────────────────────
 function hhmmToMinutes(hhmm: string): number {
@@ -30,8 +68,8 @@ function hhmmToMinutes(hhmm: string): number {
 
 // Turn length for the service the slot belongs to. Non-lunch defaults to the
 // (longer) dinner turn — the conservative choice for any out-of-band stored data.
-function turnMinutesForSlot(hhmm: string): number {
-  return isLunchSlot(hhmm) ? CAPACITY.lunchTurnMinutes : CAPACITY.dinnerTurnMinutes;
+function turnMinutesForSlot(hhmm: string, config: CapacityConfig): number {
+  return isLunchSlot(hhmm) ? config.lunchTurnMinutes : config.dinnerTurnMinutes;
 }
 
 // A reservation's occupancy interval in minutes-since-midnight.
@@ -46,7 +84,8 @@ interface Occupancy {
 // (bad data must not silently block new bookings).
 function toOccupancies(
   dayReservations: Reservation[],
-  excludeReservationId?: string,
+  excludeReservationId: string | undefined,
+  config: CapacityConfig,
 ): Occupancy[] {
   const out: Occupancy[] = [];
   for (const r of dayReservations) {
@@ -65,7 +104,7 @@ function toOccupancies(
     const startMin = hhmmToMinutes(hhmm);
     out.push({
       startMin,
-      endMin: startMin + turnMinutesForSlot(hhmm),
+      endMin: startMin + turnMinutesForSlot(hhmm, config),
       // Clamp corrupt pax: a negative value is truthy in JS and would SUBTRACT from
       // the concurrent count, masking a full room; NaN/undefined coerce to 0.
       pax: Math.max(0, r.pax || 0),
@@ -157,6 +196,9 @@ export async function checkAvailability(
   pax: number,
   excludeReservationId?: string, // when re-checking for an update, exclude the current booking
   tenantId: string = DEFAULT_TENANT_ID,
+  // Optional pre-resolved capacity. Transaction callers resolve ONCE and pass the same
+  // snapshot to both the pre-check and the in-txn re-check; other callers let us resolve.
+  config?: CapacityConfig,
 ): Promise<AvailabilityCheck> {
   // Defensive: a non-positive / non-finite party size is invalid input. The HTTP
   // boundaries (POST Zod, GET route) already validate this, but the reschedule path
@@ -212,9 +254,11 @@ export async function checkAvailability(
     };
   }
 
-  const cap = isLunch ? CAPACITY.lunchCap : CAPACITY.dinnerCap;
+  // Resolve the tenant's capacity config (or use the snapshot the caller passed).
+  const capacity = config ?? (await resolveCapacityConfig(tenantId));
+  const cap = isLunch ? capacity.lunchCap : capacity.dinnerCap;
   const winStart = hhmmToMinutes(hhmm);
-  const winEnd = winStart + turnMinutesForSlot(hhmm);
+  const winEnd = winStart + turnMinutesForSlot(hhmm, capacity);
 
   // Fetch all reservations for this date
   const snapshot = await getDb()
@@ -226,13 +270,13 @@ export async function checkAvailability(
 
   // Peak concurrent pax during the new booking's table turn — EXCLUDE cancelled +
   // exclude self (on update). Uses the SAME helpers as the in-transaction re-check.
-  const active = toOccupancies(dayReservations, excludeReservationId);
+  const active = toOccupancies(dayReservations, excludeReservationId, capacity);
   const bookedPeak = peakConcurrentPax(active, winStart, winEnd);
   const remaining = cap - bookedPeak;
 
   if (remaining < pax) {
-    // Suggest nearby slots
-    const alternatives = await suggestAlternatives(date, hhmm, pax, isLunch, tenantId);
+    // Suggest nearby slots — pass the SAME resolved config to avoid re-reads + drift.
+    const alternatives = await suggestAlternatives(date, hhmm, pax, isLunch, tenantId, capacity);
     return {
       available: false,
       reason: "fully_booked",
@@ -254,6 +298,7 @@ async function suggestAlternatives(
   pax: number,
   isLunch: boolean,
   tenantId: string,
+  config: CapacityConfig,
 ): Promise<Array<{ date: string; time: string; note: string }>> {
   const candidates = isLunch
     ? ["11:30", "12:00", "12:30", "13:00", "13:30", "14:00"]
@@ -263,7 +308,7 @@ async function suggestAlternatives(
 
   for (const candidate of candidates) {
     if (candidate === hhmm) continue; // both are normalized "HH:MM"
-    const check = await checkAvailability(date, candidate, pax, undefined, tenantId);
+    const check = await checkAvailability(date, candidate, pax, undefined, tenantId, config);
     if (check.available) {
       suggestions.push({
         date,
@@ -295,6 +340,7 @@ export function isCapacityExceeded(
   requestedTime: string,
   pax: number,
   excludeReservationId?: string,
+  config: CapacityConfig = DEFAULT_CAPACITY,
 ): boolean {
   if (!Number.isFinite(pax) || pax < 1) return true; // invalid party size → exceeded (defensive)
 
@@ -309,13 +355,13 @@ export function isCapacityExceeded(
   const isDinner = isDinnerSlot(hhmm);
   if (!isLunch && !isDinner) return true; // outside hours
 
-  const cap = isLunch ? CAPACITY.lunchCap : CAPACITY.dinnerCap;
+  const cap = isLunch ? config.lunchCap : config.dinnerCap;
   const winStart = hhmmToMinutes(hhmm);
-  const winEnd = winStart + turnMinutesForSlot(hhmm);
+  const winEnd = winStart + turnMinutesForSlot(hhmm, config);
 
-  // Same turn-time peak-occupancy model as checkAvailability — keeping the two in
-  // lockstep is what closes the TOCTOU window between pre-check and committed write.
-  const active = toOccupancies(dayReservations, excludeReservationId);
+  // Same turn-time peak-occupancy model + SAME config as checkAvailability — keeping the
+  // two in lockstep is what closes the TOCTOU window between pre-check and committed write.
+  const active = toOccupancies(dayReservations, excludeReservationId, config);
   const bookedPeak = peakConcurrentPax(active, winStart, winEnd);
 
   return bookedPeak + pax > cap;
