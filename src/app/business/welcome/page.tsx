@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const WHATSAPP_URL = "https://wa.me/60115430261";
+const WHATSAPP_URL = "https://wa.me/601154302561";
 
 export default async function BusinessWelcome({
   searchParams,
@@ -112,9 +112,12 @@ export default async function BusinessWelcome({
       <footer className="border-t border-slate-800 py-10">
         <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-slate-500">
           <div>🦊 Foxie — built in KL by an actual restaurant operator.</div>
-          <div className="flex gap-6">
+          <div className="flex flex-wrap gap-x-6 gap-y-2">
             <a href="https://songhwa-cs-agent.vercel.app" className="hover:text-slate-300">Live demo</a>
             <a href="/business#contact" className="hover:text-slate-300">Contact</a>
+            <a href="/privacy" className="hover:text-slate-300">Privacy</a>
+            <a href="/pdpa" className="hover:text-slate-300">PDPA</a>
+            <a href="/terms" className="hover:text-slate-300">Terms</a>
           </div>
         </div>
       </footer>

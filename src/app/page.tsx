@@ -959,7 +959,7 @@ export default function SonghwaAgentPage() {
           Songhwa Korean Cuisine · Millerz Square, Old Klang Road
         </p>
         <a
-          href="tel:+60115430 2561"
+          href="tel:+601154302561"
           style={{
             display: "inline-block",
             marginTop: 8,
@@ -1161,6 +1161,33 @@ export default function SonghwaAgentPage() {
           )}
         </>
       )}
+
+      {/* Legal footer — PDPA / privacy / terms (data subjects must be able to find these) */}
+      <footer
+        style={{
+          marginTop: "auto",
+          paddingTop: 40,
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 16,
+          justifyContent: "center",
+          fontSize: 12,
+        }}
+      >
+        {[
+          { href: "/privacy", label: "Privacy" },
+          { href: "/pdpa", label: "PDPA Notice" },
+          { href: "/terms", label: "Terms" },
+        ].map((l) => (
+          <a
+            key={l.href}
+            href={l.href}
+            style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none" }}
+          >
+            {l.label}
+          </a>
+        ))}
+      </footer>
 
       {/* Build version — invisible to humans, readable by automation */}
       <meta name="songhwa-build" content={BUILD_VERSION} />
