@@ -3,6 +3,7 @@
 // imports that the test runner can't load).
 
 import { getKlNow } from "../menu/firestore";
+import { normalizeTime } from "./availability";
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -19,4 +20,16 @@ export function tomorrowKlDate(now: Date = new Date()): string {
 // reservation already reminded is skipped on the second pass.
 export function reminderSweepDates(now: Date = new Date()): [string, string] {
   return [tomorrowKlDate(now), getKlNow(now).date];
+}
+
+// For the same-day (today) retry pass only: has this booking's time already passed in KL?
+// We must not "remind" a customer about a slot that's hours gone (e.g. a 6 PM cron run
+// reminding about a 12 PM lunch). Fail-safe: if the time can't be parsed, return false
+// (send the reminder anyway — a possibly-late reminder beats silently dropping one).
+export function reminderTimeHasPassed(reservationTime: string, nowHhmm: string): boolean {
+  try {
+    return normalizeTime(reservationTime) <= nowHhmm;
+  } catch {
+    return false;
+  }
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { reminderSweepDates } from "./reminder-schedule";
+import { reminderSweepDates, reminderTimeHasPassed } from "./reminder-schedule";
 
 // The reminder cron used to query only `date == tomorrow`. If a send failed in its single
 // daily window, reminderSentAt was never set and the booking's date was never == tomorrow
@@ -29,5 +29,26 @@ describe("reminderSweepDates (Asia/Kuala_Lumpur)", () => {
     expect(today).toBe("2026-12-31");
     expect(tomorrow).toBe("2027-01-01");
     expect(tomorrow).not.toBe(today);
+  });
+});
+
+// On the same-day retry pass we must NOT "remind" about a slot that already passed (a 6 PM
+// cron reminding a customer about their 12 PM lunch). Used only on the today pass.
+describe("reminderTimeHasPassed", () => {
+  it("is true when the booking time is before now (already passed)", () => {
+    expect(reminderTimeHasPassed("12:00 PM", "18:00")).toBe(true); // noon lunch, now 6 PM
+    expect(reminderTimeHasPassed("17:30", "18:00")).toBe(true);
+  });
+  it("is false when the booking time is still ahead", () => {
+    expect(reminderTimeHasPassed("7:00 PM", "18:00")).toBe(false); // dinner, now 6 PM
+    expect(reminderTimeHasPassed("19:30", "18:00")).toBe(false);
+  });
+  it("normalizes 12h/24h formats consistently", () => {
+    expect(reminderTimeHasPassed("8 PM", "18:00")).toBe(false);
+    expect(reminderTimeHasPassed("8:00am", "18:00")).toBe(true);
+  });
+  it("FAIL-SAFE: an unparseable time does NOT skip (better a late reminder than a dropped one)", () => {
+    expect(reminderTimeHasPassed("whenever", "18:00")).toBe(false);
+    expect(reminderTimeHasPassed("", "18:00")).toBe(false);
   });
 });

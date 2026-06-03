@@ -12,7 +12,8 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/firebase-admin";
 import { listActiveTenants } from "@/lib/tenants/firestore";
 import { tc } from "@/lib/tenants/collection";
-import { reminderSweepDates } from "@/lib/reservations/reminder-schedule";
+import { reminderSweepDates, reminderTimeHasPassed } from "@/lib/reservations/reminder-schedule";
+import { getKlNow } from "@/lib/menu/firestore";
 import { sendBookingReminder, isMetaWaConfigured } from "@/lib/whatsapp/meta-client";
 import { sendToStaffRaw } from "@/lib/telegram";
 import { verifyBearer } from "@/lib/auth-secret";
@@ -39,9 +40,13 @@ export async function GET(request: Request) {
   try {
     const sweepDates = reminderSweepDates();
     const todayDate = sweepDates[1];
+    const nowHhmm = getKlNow().hhmm;
     const tenants = await listActiveTenants();
     let sent = 0;
     const perTenant: TenantReminderResult[] = [];
+    // Last-chance (today-pass) failures, collected across ALL tenants → ONE staff alert at the
+    // end, so a full Meta outage doesn't fan out hundreds of individual Telegram messages.
+    const undelivered: string[] = [];
 
     for (const tenant of tenants) {
       const tenantResult: TenantReminderResult = { tenantId: tenant.id, sent: 0, failed: 0 };
@@ -62,6 +67,10 @@ export async function GET(request: Request) {
             // Idempotency: skip anything we've already reminded.
             if (reservation.reminderSentAt) continue;
 
+            // On the same-day retry pass, don't remind about a slot whose time already passed
+            // (e.g. a 6 PM cron run reminding about a 12 PM lunch). The tomorrow pass is always future.
+            if (isLastChance && reminderTimeHasPassed(reservation.time, nowHhmm)) continue;
+
             // Per-reservation try/catch so one failure never aborts the batch.
             try {
               await sendBookingReminder(reservation);
@@ -78,13 +87,11 @@ export async function GET(request: Request) {
                 lastChance: isLastChance,
                 err,
               });
-              // After today there is no further retry window — alert staff to remind manually.
+              // After today there is no further retry window — collect for a single staff alert.
               if (isLastChance) {
-                sendToStaffRaw(
-                  `⚠️ Reminder could not be delivered to ${reservation.name} (${reservation.phone}) ` +
-                    `for booking ${reservation.date} at ${reservation.time}, ${reservation.pax} pax. ` +
-                    `Please remind them manually.`,
-                ).catch(() => {});
+                undelivered.push(
+                  `• ${reservation.name} (${reservation.phone}) — ${reservation.date} ${reservation.time}, ${reservation.pax} pax`,
+                );
               }
             }
           }
@@ -97,10 +104,20 @@ export async function GET(request: Request) {
       perTenant.push(tenantResult);
     }
 
+    // ONE aggregated staff alert for all of today's undelivered reminders (no per-reservation spam).
+    if (undelivered.length > 0) {
+      sendToStaffRaw(
+        `⚠️ ${undelivered.length} reminder(s) could not be delivered today — please remind these guests manually:\n` +
+          undelivered.slice(0, 30).join("\n") +
+          (undelivered.length > 30 ? `\n…and ${undelivered.length - 30} more.` : ""),
+      ).catch(() => {});
+    }
+
     return NextResponse.json({
       success: true,
       dates: sweepDates,
       sent,
+      undelivered: undelivered.length,
       tenants: perTenant.length,
       perTenant,
     });

@@ -144,5 +144,18 @@ Ran the capstone convergence re-review (3 lenses) over iterations 7-10. **7 conf
 - [ ] **P2 (F2) — confirmation echoes the model's RAW date/time, not the canonical stored value** — return the resolved reservation and build the confirmation from it.
 - [ ] **P3 (×3, fix-interactions in my recent changes):** upsertDraft un-converts a just-succeeded booking if save_reservation_draft is called after create (WA-DRAFT-UNCONVERT-AFTER-SUCCESS); repeat booker's failed 2nd create un-converts the 1st's draft (R1) — both → make un-convert intent-aware (only when fields DIFFER); pendingReply-above-gates re-delivers non-booking acks to a suspended tenant (WA-PENDING-FASTPATH-OVERBROAD) → tag confirmations only.
 
+## Iteration 12 — re-review cleanup: reminder edges + intent-aware draft (2026-06-04)
+
+### ✅ FIXED & deployed
+- [x] **P2 (R2, my iter-10 regression) — today-pass reminded already-passed slots** — the 6 PM same-day sweep would "remind" a customer about a 12 PM lunch. **Fix:** `reminderTimeHasPassed()` (TDD, 4 tests, fail-safe on unparseable time) skips today-pass reservations whose normalized time ≤ now (KL); the tomorrow pass is always future.
+- [x] **P2 (R3, my iter-10 regression) — staff-alert storm** — a full Meta outage fanned out one Telegram per failed reservation. **Fix:** collect today-pass failures across all tenants → ONE aggregated staff alert (capped at 30 lines).
+- [x] **P3 (×2, my iter-7 draft un-convert) — un-converted a just-succeeded booking / 1st booking's draft** — un-convert was field-PRESENCE-based. **Fix:** now intent-aware — only un-converts when an incoming field genuinely DIFFERS from the converted booking, so re-stating the same booking (or the create path re-upserting identical fields) never un-converts a success.
+
+### ⬜ Remaining (final cleanup + external)
+- [ ] **P2 (F2) — create-success confirmation echoes the model's RAW date/time** (e.g. "Saturday April 25") rather than the canonical stored YYYY-MM-DD. Return the resolved reservation and build the confirmation from it.
+- [ ] **P3 — pendingReply-above-gates re-delivers NON-booking acks to a suspended tenant** (tag confirmations only).
+- [ ] **P2 — per-message create idempotency key; Vapi tool-schema hand-fork drift; WhatsApp sender==booking-number assumption. P3 — web proactive greeting; resolveFinalReply English fallback strings.**
+- [ ] **P1 — Vapi phone dead-transfer** — _needs Chris_ (runbook in iteration 8).
+
 ## Test ledger
 - 129 tests (0→126 this session): +13 `reply-resolution`, +8 `conversation`, +6 `promo-channel`, +5 `business/hours`, on top of the prior 94.

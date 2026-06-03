@@ -63,14 +63,20 @@ export async function upsertDraft(
       ...providedFields, // only overwrites explicitly-provided fields
       updatedAt: now,
     };
-    // WhatsApp sessions are stable per-customer (`wa_<phone>`), so a repeat booker reuses
-    // this same draft. If it was already converted (a prior booking) and NEW booking fields
-    // are now arriving, this is a fresh intent — un-convert it so a failed/incomplete
-    // follow-on booking stays visible to staff recovery (getUnconvertedDrafts) instead of
-    // hiding behind the previous booking's converted=true.
-    if (current.converted && Object.keys(providedFields).length > 0) {
-      merged.converted = false;
-      delete merged.convertedReservationId;
+    // WhatsApp sessions are stable per-customer (`wa_<phone>`), so a repeat booker reuses this
+    // same draft. If it was already converted (a prior booking) and a field now arrives that
+    // DIFFERS from the converted booking, this is a fresh intent — un-convert it so a
+    // failed/incomplete follow-on booking stays visible to staff recovery (getUnconvertedDrafts).
+    // We require a real DIFFERENCE (not mere field presence) so that re-stating the same booking
+    // — or the create path re-upserting identical fields — never un-converts a just-succeeded one.
+    if (current.converted) {
+      const isFreshIntent = Object.entries(providedFields).some(
+        ([k, v]) => current[k as keyof ReservationDraft] !== v,
+      );
+      if (isFreshIntent) {
+        merged.converted = false;
+        delete merged.convertedReservationId;
+      }
     }
     const completeness = [merged.name, merged.phone, merged.date, merged.time, merged.pax]
       .filter((v) => v !== null && v !== "")
