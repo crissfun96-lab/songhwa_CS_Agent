@@ -49,6 +49,10 @@ const CreateReservationSchema = z.object({
   menuChoice: z.string().max(500).optional().default(""),
   remarks: z.string().max(1000).optional().default(""),
   sessionId: z.string().optional(),
+  // Origin channel. "whatsapp" → the dispatcher already confirms in-chat (in the customer's
+  // language), so the route must NOT also fire sendBookingConfirmation (avoids a duplicate,
+  // English, "Reply CANCEL" message). Absent for web/voice → route sends the sole confirmation.
+  channel: z.string().max(20).optional(),
   // skipAvailabilityCheck REMOVED from public schema — was a security risk.
   // Admin endpoint /api/admin/reservations/:id still supports it internally.
 });
@@ -311,9 +315,13 @@ export async function POST(request: Request): Promise<NextResponse<CreateReserva
 
     // Customer-facing WhatsApp confirmation (template-first w/ text fallback,
     // self-env-guarded). Fire-and-forget — must NEVER block or fail the booking.
-    sendBookingConfirmation(reservation).catch((err) =>
-      log.error({ event: "reservation_customer_confirmation_failed", tenantId, err }),
-    );
+    // SKIP for WhatsApp-originated bookings: the dispatcher already confirms in-chat in the
+    // customer's language, so firing this too would double-message them (a second English msg).
+    if (parsed.channel !== "whatsapp") {
+      sendBookingConfirmation(reservation).catch((err) =>
+        log.error({ event: "reservation_customer_confirmation_failed", tenantId, err }),
+      );
+    }
 
     enqueueNewReservation(reservation, { tenantId }).catch((err) =>
       log.error({ event: "wa_queue_enqueue_failed", tenantId, err }),

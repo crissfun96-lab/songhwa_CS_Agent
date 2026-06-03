@@ -71,5 +71,20 @@ Re-ran the 5 dimensions that failed in iteration 1 (hardened StructuredOutput ma
 - [ ] **P3 — Web voice has no proactive greeting** (stays silent until user speaks).
 - [ ] _(rejected by skeptic, not real: find-reservation guardrail "stripped" on phone; mid-booking-correction staleness — both refuted with code evidence.)_
 
+## Iteration 6 — regression-focused RE-REVIEW + fixes (2026-06-04)
+
+Ran a 3-lens re-review (regression / fix-incomplete / fresh-blockers) after 5 fix iterations. **8 confirmed (2 P1, 4 P2, 2 P3), 2 rejected.** It caught real holes in my OWN fixes — exactly its purpose.
+
+### ✅ FIXED & deployed
+- [x] **P1 (fix-incomplete) — Empty Gemini candidate after a committed booking still showed "I'm sorry, I didn't catch that"** — the per-round break (`finalText = result.text ?? "<apology>"`) set a TRUTHY apology that bypassed the post-loop `if (!finalText) resolveFinalReply(...)` guard, re-opening the iteration-1 P1 through an uncovered exit (empty candidate = MAX_TOKENS@800/SAFETY right after a successful create). **Fix:** the break now sets `finalText = result.text ?? null` and BOTH loop exits funnel through `finalText = resolveFinalReply(finalText, lastMutation)` — a committed booking can never be masked. (Now everything routes through the unit-tested resolver.)
+- [x] **P1 (regression) — WhatsApp bookings sent TWO confirmations** — the dispatcher confirms in-chat (customer's language) AND the create route always fired `sendBookingConfirmation` (a 2nd English "Reply CANCEL" template). **Fix:** create body carries `channel:"whatsapp"`; the route skips its own confirmation when `channel==="whatsapp"` (web/voice still get the sole confirmation). Explicit flag, not session-prefix sniffing.
+
+### ⬜ Confirmed, deferred (the resolveFinalReply / ordering cluster → next iteration)
+- [ ] **P2 — pendingReply fast-path sits BELOW the billing/handoff gates** — a committed booking's confirmation retry is dropped if the tenant is suspended between the failed send and the retry. Fix: move the fast-path ABOVE the gates (an owed, already-committed obligation).
+- [ ] **P2 — `lastMutation` tracks only the LAST mutating tool** — a successful create followed by a failed same-turn update/cancel reports the booking as failed. Fix: prefer the last SUCCESSFUL mutation.
+- [ ] **P2 — Failed create on the final round sends generic "having trouble" instead of the route's `alternatives`** — `resolveFinalReply` should surface actionable failure data (fully_booked/outside_hours alternatives).
+- [ ] **P2 — Draft safety-net per-session overwrite** — a 2nd booking in the same session, if it fails, is hidden because the draft was marked converted by the 1st. Fix: reset `converted` on new create-attempt fields.
+- [ ] **P3 — `resolveFinalReply` + create-success confirmations are hardcoded English** — wrong language for ZH/BM/KO customers on the final-round/empty-candidate path. Fix: localized confirmation strings (or always reserve a model round to speak).
+
 ## Test ledger
 - 126 tests (0→126 this session): +13 `reply-resolution`, +8 `conversation`, +6 `promo-channel`, +5 `business/hours`, on top of the prior 94.

@@ -163,6 +163,7 @@ async function executeTool(
           headers: baseHeaders,
           body: JSON.stringify({
             sessionId,
+            channel: "whatsapp", // route skips its own confirmation; we confirm in-chat below
             name: String(args.name ?? ""),
             phone: String(args.phone ?? ""),
             date: String(args.date ?? ""),
@@ -380,15 +381,15 @@ export async function processInboundMessage(
       continue;
     }
 
-    finalText = result.text ?? "I'm sorry, I didn't catch that. Could you rephrase?";
+    finalText = result.text ?? null;
     break;
   }
 
-  // Loop exhausted without the model producing text. If a booking-mutating tool just
-  // succeeded, CONFIRM it (the tool's own message) — never tell the customer it failed.
-  if (!finalText) {
-    finalText = resolveFinalReply(null, lastMutation);
-  }
+  // Resolve the reply through ONE path so a committed booking is NEVER masked by an empty
+  // model turn (e.g. MAX_TOKENS/SAFETY → no candidate text) OR by loop exhaustion: prefer
+  // the model's text; else confirm a just-succeeded mutation (lastMutation); else a generic
+  // failure. Both loop exits (empty-candidate break above, and exhaustion) funnel here.
+  finalText = resolveFinalReply(finalText, lastMutation);
 
   // Send via Meta Cloud API. Report success ONLY after the reply is actually DELIVERED.
   // A transient send failure returns retryable so the batch leaves the message
