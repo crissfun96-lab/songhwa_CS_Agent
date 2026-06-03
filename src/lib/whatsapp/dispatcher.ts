@@ -19,13 +19,18 @@ import { getDb } from "../firebase-admin";
 import { loadHistory, appendMessage, type ConvMessage } from "./conversation";
 import { callGemini, toGeminiContents } from "./gemini-text";
 import { sendText } from "./meta-client";
+import { resolveFinalReply, isMutatingTool, type ToolOutcome } from "./reply-resolution";
 import { getWaConversationMode } from "../handoff/firestore";
 import { buildSystemPrompt, TOOL_DECLARATIONS } from "../menu/prompt-injector";
 import { tc } from "../tenants/collection";
 import { DEFAULT_TENANT_ID } from "../tenants/types";
 import { tenantServiceState } from "../billing/lifecycle";
 
-const MAX_TOOL_ROUNDS = 4;
+// Bumped 4→6: a normal booking can chain lookup_customer → check_availability →
+// save_reservation_draft → create_reservation and still need a round for the model
+// to speak the confirmation. 4 was too tight (booking could succeed but the loop exit
+// silent → customer wrongly told it failed). resolveFinalReply is the belt-and-braces.
+const MAX_TOOL_ROUNDS = 6;
 
 interface InboundMessage {
   id: string;
@@ -42,6 +47,9 @@ interface InboundMessage {
   processingError?: string;
   processing?: boolean;
   claimedAt?: string;
+  // Set when the reply was computed but DELIVERY failed (transient Meta outage). A
+  // later run re-sends this verbatim without re-running the model loop (idempotent retry).
+  pendingReply?: string;
 }
 
 // A message whose `claimedAt` is older than this is treated as a stale claim
@@ -222,10 +230,32 @@ export async function processInboundMessage(
   ok: boolean;
   replyText?: string;
   error?: string;
+  // true = transient DELIVERY failure; the message must NOT be marked processed, and
+  // replyText should be persisted as pendingReply for a later idempotent re-send.
+  retryable?: boolean;
 }> {
   // Skip non-text messages for now (audio support comes later via Mesolitica/Deepgram)
   if (msg.type !== "text" || !msg.text?.trim()) {
     return { ok: true, replyText: undefined };
+  }
+
+  // IDEMPOTENT RETRY FAST-PATH — a prior run computed the reply but failed to DELIVER it
+  // (e.g. a transient Meta outage). Re-send verbatim; do NOT re-run the model loop or
+  // re-append the user turn (the booking, if any, already committed on the first run).
+  if (msg.pendingReply && msg.pendingReply.trim()) {
+    try {
+      await sendText(msg.from, msg.pendingReply);
+      await appendMessage(
+        msg.from,
+        { role: "model", text: msg.pendingReply, at: new Date().toISOString() },
+        undefined,
+        tenantId,
+      );
+      return { ok: true, replyText: msg.pendingReply };
+    } catch (err) {
+      log.warn({ event: "wa_reply_resend_failed", phone: msg.from, err, tenantId });
+      return { ok: false, retryable: true, replyText: msg.pendingReply, error: "send_retry_failed" };
+    }
   }
 
   // Check conversation mode — silent if human handoff is active
@@ -265,6 +295,7 @@ export async function processInboundMessage(
   // Tool-call loop (Gemini may need multiple rounds to satisfy the user)
   const contents = toGeminiContents([...history, userMsg]);
   let finalText: string | null = null;
+  let lastMutation: ToolOutcome | null = null;
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     const result = await callGemini({
@@ -281,6 +312,12 @@ export async function processInboundMessage(
         sessionId,
         tenantId,
       );
+
+      // Remember the last booking-mutating tool outcome so that if the loop exits
+      // before the model speaks, we can still CONFIRM a success (never report failure).
+      if (isMutatingTool(result.functionCall.name)) {
+        lastMutation = { name: result.functionCall.name, result: toolResult };
+      }
 
       contents.push({
         role: "model",
@@ -316,12 +353,22 @@ export async function processInboundMessage(
     break;
   }
 
+  // Loop exhausted without the model producing text. If a booking-mutating tool just
+  // succeeded, CONFIRM it (the tool's own message) — never tell the customer it failed.
   if (!finalText) {
-    finalText = "Sorry, I'm having trouble processing that. Please try again or call us at +60 11-5430 2561.";
+    finalText = resolveFinalReply(null, lastMutation);
   }
 
-  // Send via Meta Cloud API + persist model reply
-  await sendText(customerPhone, finalText);
+  // Send via Meta Cloud API. Report success ONLY after the reply is actually DELIVERED.
+  // A transient send failure returns retryable so the batch leaves the message
+  // unprocessed (stashing pendingReply) instead of silently consuming it — the booking
+  // may already be committed, so the customer MUST eventually be told.
+  try {
+    await sendText(customerPhone, finalText);
+  } catch (err) {
+    log.warn({ event: "wa_reply_send_failed_will_retry", phone: customerPhone, err, tenantId });
+    return { ok: false, retryable: true, replyText: finalText, error: "send_failed" };
+  }
   await appendMessage(customerPhone, {
     role: "model",
     text: finalText,
@@ -392,12 +439,22 @@ export async function processInboundBatch(
     const msg = doc.data() as InboundMessage;
     try {
       const result = await processInboundMessage(msg, tenantId);
-      if (!result.ok) {
+      if (result.retryable) {
+        // Transient DELIVERY failure — do NOT consume the message. Stash the computed
+        // reply and release the claim so a later run re-sends it via the idempotent
+        // fast-path (no re-run of the model, no re-booking).
+        failed++;
+        await doc.ref.update({
+          processing: false,
+          pendingReply: result.replyText ?? null,
+          processingError: result.error ?? "send_failed",
+        });
+      } else if (!result.ok) {
         failed++;
         await doc.ref.update({ processed: true, processing: false, processingError: result.error ?? "unknown" });
       } else if (result.replyText) {
         processed++;
-        await doc.ref.update({ processed: true, processing: false });
+        await doc.ref.update({ processed: true, processing: false, pendingReply: null });
       } else {
         skipped++;
         await doc.ref.update({ processed: true, processing: false });
