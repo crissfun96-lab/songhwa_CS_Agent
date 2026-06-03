@@ -50,7 +50,14 @@ interface InboundMessage {
   // Set when the reply was computed but DELIVERY failed (transient Meta outage). A
   // later run re-sends this verbatim without re-running the model loop (idempotent retry).
   pendingReply?: string;
+  // How many times the pendingReply re-send has failed. Capped so a permanently-
+  // undeliverable number doesn't retry forever on every cron/webhook run.
+  pendingReplyAttempts?: number;
 }
+
+// Give up re-sending a pendingReply after this many failed delivery attempts (then the
+// message is marked processed so it stops being re-claimed; staff already saw the booking).
+const MAX_PENDING_REPLY_ATTEMPTS = 5;
 
 // A message whose `claimedAt` is older than this is treated as a stale claim
 // (the claiming run probably crashed mid-flight) and may be re-claimed.
@@ -261,6 +268,11 @@ export async function processInboundMessage(
   // (e.g. a transient Meta outage). Re-send verbatim; do NOT re-run the model loop or
   // re-append the user turn (the booking, if any, already committed on the first run).
   if (msg.pendingReply && msg.pendingReply.trim()) {
+    // Give up after too many failed re-sends so we don't re-claim this message forever.
+    if ((msg.pendingReplyAttempts ?? 0) >= MAX_PENDING_REPLY_ATTEMPTS) {
+      log.error({ event: "wa_reply_undeliverable_gave_up", phone: msg.from, attempts: msg.pendingReplyAttempts, tenantId });
+      return { ok: false, error: "pending_reply_undeliverable" };
+    }
     try {
       await sendText(msg.from, msg.pendingReply);
       await appendMessage(
@@ -299,7 +311,7 @@ export async function processInboundMessage(
   ]);
 
   // Adapt the voice-first system prompt for WhatsApp text mode
-  const waSystemPrompt = `${systemPrompt}\n\n═══════════════════════════════════════════\nCHANNEL: WHATSAPP TEXT\n═══════════════════════════════════════════\nYou are replying via WhatsApp (text messages), not voice. Adapt:\n- Keep replies SHORT — 1-3 lines per message ideal.\n- Use emojis sparingly (1-2 per message max).\n- Use line breaks for clarity, NOT WhatsApp markdown (*bold* / _italic_ get eaten by API).\n- The customer's phone is already known: ${customerPhone}. Don't re-ask. Use it directly when calling tools that need phone.\n- If you'd say "let me check that for you" before a tool call in voice, DON'T — just call the tool. WhatsApp users don't need filler.\n- Don't read out long menus — summarize, then ask "want details on any of these?"\n- For PDPA: no recording disclosure needed on text channel — they have the chat record.`;
+  const waSystemPrompt = `${systemPrompt}\n\n═══════════════════════════════════════════\nCHANNEL: WHATSAPP TEXT\n═══════════════════════════════════════════\nYou are replying via WhatsApp (text messages), not voice. Adapt:\n- Keep replies SHORT — 1-3 lines per message ideal.\n- Use emojis sparingly (1-2 per message max).\n- Use line breaks for clarity, NOT WhatsApp markdown (*bold* / _italic_ get eaten by API).\n- The customer's phone is already known: ${customerPhone}. Don't re-ask. Use it directly when calling tools that need phone.\n- If you'd say "let me check that for you" before a tool call in voice, DON'T — just call the tool. WhatsApp users don't need filler.\n- Don't read out long menus — summarize, then ask "want details on any of these?"\n- For PDPA: no recording disclosure needed on text channel — they have the chat record.\n- TEXT FORMATTING — override the voice formatting rules above (they are for SPOKEN calls only): write prices normally (e.g. "RM358", not "three fifty-eight ringgit"); write times as "7:00 PM"; show a phone number as digits (e.g. "012-345 6789") — do NOT spell it out digit by digit.\n- RETURNING CUSTOMER: on your FIRST reply in a conversation, silently call lookup_customer with the known phone (no announcement, no filler). If found, greet them by the name they used before and you may reference their usual order; if new, just continue normally.`;
 
   // Append the new user message
   const userMsg: ConvMessage = {
@@ -461,11 +473,13 @@ export async function processInboundBatch(
       if (result.retryable) {
         // Transient DELIVERY failure — do NOT consume the message. Stash the computed
         // reply and release the claim so a later run re-sends it via the idempotent
-        // fast-path (no re-run of the model, no re-booking).
+        // fast-path (no re-run of the model, no re-booking). Count attempts so a
+        // permanently-undeliverable message eventually gives up (see MAX_PENDING_REPLY_ATTEMPTS).
         failed++;
         await doc.ref.update({
           processing: false,
           pendingReply: result.replyText ?? null,
+          pendingReplyAttempts: (msg.pendingReplyAttempts ?? 0) + 1,
           processingError: result.error ?? "send_failed",
         });
       } else if (!result.ok) {

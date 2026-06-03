@@ -49,9 +49,18 @@ Re-ran the 5 dimensions that failed in iteration 1 (hardened StructuredOutput ma
 - [x] **P1 — Promos not channel-scoped** — `getActivePromos` never filtered by channel, so the agent could quote an Eatigo/Grab/foodpanda discount on a dine-in reservation. **Fix:** pure `promoAllowedOnChannel()` (TDD, 6 tests) — a reservation conversation only sees `dine_in` promos (+ its own direct channel); wired into `getActivePromos(channel)`, the `/api/menu/promos` route (defaults to `dine_in` so third-party promos can't leak even if a surface forgets), and all 3 surfaces (WhatsApp→whatsapp, Vapi→phone, web→phone).
 - [x] **P2 — `today_hours` always returned day index 0 (Sun/Mon)** — agent quoted the wrong day's hours 6 days/week. **Fix:** `todayHoursText()` + `klDayOfWeek()` (TDD, 5 tests) select the `hours` entry matching today's KL weekday (source-independent via explicit `dayOfWeek`); wired into `/api/business/status`.
 
+## Iteration 4 — conversational polish + close self-introduced debt (2026-06-04)
+
+### ✅ FIXED & deployed
+- [x] **P2 — Voice number-formatting leaked into WhatsApp text** — agent wrote "three fifty-eight ringgit" and spelled phone digits one-by-one in chat. **Fix:** WhatsApp override block now countermands the voice formatting rules (write RM358, "7:00 PM", phones as digits).
+- [x] **P2 — No fuzzy-time guidance** ("7-ish", "around 7", "this weekend") — agent could pass a vague time to availability/booking. **Fix:** new flow step a2 — pin down + confirm a specific date/time before checking availability.
+- [x] **P2 — WhatsApp returning-customer recognition suppressed** by the "no filler" override. **Fix:** WhatsApp override now instructs a silent `lookup_customer` on the first reply → greet by name if known.
+- [x] **P3 — `pendingReply` retry had no attempt cap** (debt from iteration 1) — a permanently-undeliverable number would re-attempt every cron/webhook run forever. **Fix:** `pendingReplyAttempts` counter + `MAX_PENDING_REPLY_ATTEMPTS=5` → gives up (marks processed, logs `wa_reply_undeliverable_gave_up`) after the cap.
+
 ### ⬜ Confirmed, still open (next iterations)
 - [ ] **P1 — Phone "transfer me to a manager NOW" is a dead transfer** (Vapi) — promises a live transfer that never bridges. Fix needs a Vapi `transferCall` tool in `docs/vapi/songhwa-assistant.json` + **Chris to re-import the assistant** (Vapi dashboard). _Needs-Chris._
-- [ ] **P2 (×8) — prompt/parity polish:** voice number-formatting leaking into WhatsApp text; no fuzzy-time guidance ("7-ish"); WhatsApp returning-customer lookup suppressed by the "no filler" override; phone caller-ID discarded (forces reciting number); cross-channel success-message wording inconsistency; Vapi tool-schema hand-fork drift; WhatsApp assumes sender==booking number.
+- [ ] **P2 — Reliability tail (never-lose-a-booking):** server-side draft safety-net on every create attempt; per-inbound-message idempotency key (`metaMessageId`) for create + history append; reminder-cron retry/failure-marker. _(iteration 5 — TDD.)_
+- [ ] **P2 — parity polish (remaining):** phone caller-ID discarded (forces reciting number); cross-channel success-message wording inconsistency; Vapi tool-schema hand-fork drift; WhatsApp assumes sender==booking number (confirm before lookup/modify).
 - [ ] **P3 — Web voice has no proactive greeting** (stays silent until user speaks).
 - [ ] _(rejected by skeptic, not real: find-reservation guardrail "stripped" on phone; mid-booking-correction staleness — both refuted with code evidence.)_
 
