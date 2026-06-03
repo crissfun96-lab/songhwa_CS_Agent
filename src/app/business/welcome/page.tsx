@@ -10,7 +10,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Welcome to Foxie — You're in 🎉",
   description:
-    "Your Foxie AI Receptionist subscription is confirmed. We'll reach out within 24 hours to set up your phone number, WhatsApp, and menu.",
+    "Thanks for signing up for Foxie AI Receptionist. We'll reach out within 24 hours to set up your phone number, WhatsApp, and menu.",
   robots: { index: false, follow: false },
 };
 
@@ -44,17 +44,17 @@ export default async function BusinessWelcome({
           </div>
 
           <span className="inline-block text-xs uppercase tracking-widest text-emerald-300 font-semibold mb-4 border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 rounded-full">
-            Payment confirmed
+            You&apos;re signed up
           </span>
 
           <h1 className="text-4xl sm:text-5xl font-bold leading-tight mb-4">
             You&apos;re in <span aria-hidden>🎉</span>
           </h1>
           <p className="text-lg text-slate-300 leading-relaxed max-w-xl mx-auto mb-2">
-            Welcome to Foxie. Your AI Receptionist subscription is active.
+            Welcome to Foxie. Let&apos;s get your AI Receptionist set up.
           </p>
           <p className="text-sm text-slate-400 max-w-xl mx-auto">
-            A confirmation email is on its way. No further action needed right now — we&apos;ll take it from here.
+            We&apos;ll reach out on WhatsApp within 24 hours to start setup — no further action needed right now.
           </p>
         </div>
 
