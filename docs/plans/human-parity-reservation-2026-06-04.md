@@ -86,5 +86,20 @@ Ran a 3-lens re-review (regression / fix-incomplete / fresh-blockers) after 5 fi
 - [ ] **P2 — Draft safety-net per-session overwrite** — a 2nd booking in the same session, if it fails, is hidden because the draft was marked converted by the 1st. Fix: reset `converted` on new create-attempt fields.
 - [ ] **P3 — `resolveFinalReply` + create-success confirmations are hardcoded English** — wrong language for ZH/BM/KO customers on the final-round/empty-candidate path. Fix: localized confirmation strings (or always reserve a model round to speak).
 
+## Iteration 7 — reply-resolution + ordering cluster (2026-06-04)
+
+### ✅ FIXED & deployed
+- [x] **P2 (WA-3, fix-incomplete) — success must win over a later same-turn failure** — `lastMutation` tracked the LAST mutating tool, so a successful create followed by a failed same-turn update/cancel reported the booking as failed. **Fix:** the dispatcher now only records the last SUCCESSFUL mutation (`isMutatingTool && mutationSucceeded`), so a committed create is never masked.
+- [x] **P2 (WA-2, regression) — pendingReply fast-path sat below the billing/handoff gates** — a committed booking's confirmation retry was dropped if the tenant suspended between the failed send and the retry. **Fix:** moved the fast-path ABOVE the gates — a pending confirmation is an already-committed obligation and is honored regardless of current service state.
+- [x] **P2 (draft-multibooking, fix-incomplete) — per-customer draft hid a failed repeat booking** — WhatsApp sessions are `wa_<phone>` (stable per customer), so a repeat booker reuses one draft; a failed 2nd booking looked `converted` from the 1st and vanished from staff recovery. **Fix:** `upsertDraft` un-converts the draft when new booking fields arrive on an already-converted session draft (fresh intent), so a failed/incomplete follow-on stays recoverable.
+
+### ⬜ Confirmed, still open
+- [ ] **P2 (F1) — failed create on the final tool round → generic "having trouble" instead of the route's `alternatives`** — only bites on the rare empty-candidate/exhaustion-after-failed-create path (the model normally voices the failure in-language). Deferred: surfacing alternatives well is locale-dependent.
+- [ ] **P3 — English fallback strings** in `resolveFinalReply` + create-success message — wrong language for ZH/BM/KO only on the rare no-model-text path. Deferred (low value; the common path is already in-language).
+- [ ] **P1 — Vapi phone dead-transfer** — _needs Chris to re-import the Vapi assistant_ after I prep the `transferCall` spec.
+- [ ] **P2 — reminder-cron retry/failure-marker** (once-daily `where(date==tomorrow)` → a missed reminder is permanently unrecoverable; needs a date-range query + index consideration).
+- [ ] **P2 — per-inbound-message create idempotency key** (`metaMessageId`) — belt-and-braces beyond the 60-min dup guard + pendingReply fast-path.
+- [ ] **P2 — remaining parity polish:** phone caller-ID discarded; cross-channel success-message wording; Vapi schema hand-fork drift; WhatsApp sender==booking-number assumption. **P3:** web proactive greeting.
+
 ## Test ledger
 - 126 tests (0→126 this session): +13 `reply-resolution`, +8 `conversation`, +6 `promo-channel`, +5 `business/hours`, on top of the prior 94.

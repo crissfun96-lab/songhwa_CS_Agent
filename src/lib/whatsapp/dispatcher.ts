@@ -19,7 +19,7 @@ import { getDb } from "../firebase-admin";
 import { loadHistory, appendMessage, sanitizeHistoryForModel, type ConvMessage } from "./conversation";
 import { callGemini, toGeminiContents } from "./gemini-text";
 import { sendText } from "./meta-client";
-import { resolveFinalReply, isMutatingTool, type ToolOutcome } from "./reply-resolution";
+import { resolveFinalReply, isMutatingTool, mutationSucceeded, type ToolOutcome } from "./reply-resolution";
 import { getWaConversationMode } from "../handoff/firestore";
 import { buildSystemPrompt, TOOL_DECLARATIONS } from "../menu/prompt-injector";
 import { tc } from "../tenants/collection";
@@ -249,25 +249,12 @@ export async function processInboundMessage(
   // replyText should be persisted as pendingReply for a later idempotent re-send.
   retryable?: boolean;
 }> {
-  // Check conversation mode — stay SILENT if a human handoff is active. Checked FIRST
-  // (before the non-text reply below) so we never talk over a human agent, whatever the
-  // message type.
-  const mode = await getWaConversationMode(msg.from, tenantId);
-  if (mode === "human") {
-    return { ok: true, error: "human_mode — AI silent" };
-  }
-
-  // Billing gate: if this tenant isn't serviceable (suspended / cancelled /
-  // trial expired / over quota), skip SILENTLY — never reply, so we don't
-  // spam a suspended tenant's customers. Fail-open keeps active tenants live.
-  const s = await tenantServiceState(tenantId);
-  if (!s.serviceable) {
-    return { ok: true, error: `service_${s.reason} — skipped` };
-  }
-
   // IDEMPOTENT RETRY FAST-PATH — a prior run computed the reply but failed to DELIVER it
   // (e.g. a transient Meta outage). Re-send verbatim; do NOT re-run the model loop or
   // re-append the user turn (the booking, if any, already committed on the first run).
+  // Checked BEFORE the gates below: a pendingReply is an already-decided obligation to the
+  // customer (their booking is committed) and must be honored even if the tenant has since
+  // been suspended or a handoff started — suppressing it would strand a confirmed booking.
   if (msg.pendingReply && msg.pendingReply.trim()) {
     // Give up after too many failed re-sends so we don't re-claim this message forever.
     if ((msg.pendingReplyAttempts ?? 0) >= MAX_PENDING_REPLY_ATTEMPTS) {
@@ -287,6 +274,21 @@ export async function processInboundMessage(
       log.warn({ event: "wa_reply_resend_failed", phone: msg.from, err, tenantId });
       return { ok: false, retryable: true, replyText: msg.pendingReply, error: "send_retry_failed" };
     }
+  }
+
+  // Check conversation mode — stay SILENT if a human handoff is active. Checked before the
+  // non-text reply + the model loop so we never talk over a human agent, whatever the type.
+  const mode = await getWaConversationMode(msg.from, tenantId);
+  if (mode === "human") {
+    return { ok: true, error: "human_mode — AI silent" };
+  }
+
+  // Billing gate: if this tenant isn't serviceable (suspended / cancelled /
+  // trial expired / over quota), skip SILENTLY — never reply, so we don't
+  // spam a suspended tenant's customers. Fail-open keeps active tenants live.
+  const s = await tenantServiceState(tenantId);
+  if (!s.serviceable) {
+    return { ok: true, error: `service_${s.reason} — skipped` };
   }
 
   // Non-text messages (image / audio / sticker / location): we can't read them yet, but a
@@ -345,9 +347,10 @@ export async function processInboundMessage(
         tenantId,
       );
 
-      // Remember the last booking-mutating tool outcome so that if the loop exits
-      // before the model speaks, we can still CONFIRM a success (never report failure).
-      if (isMutatingTool(result.functionCall.name)) {
+      // Remember the last SUCCESSFUL booking-mutating tool so that if the loop exits before
+      // the model speaks, we still CONFIRM the booking — and a successful create is never
+      // masked by a failed same-turn update/cancel (success wins over a later failure).
+      if (isMutatingTool(result.functionCall.name) && mutationSucceeded(toolResult)) {
         lastMutation = { name: result.functionCall.name, result: toolResult };
       }
 
