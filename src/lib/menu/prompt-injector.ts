@@ -146,7 +146,11 @@ RULES OF ENGAGEMENT
    g. If create_reservation returns success:false, do NOT claim the booking saved. Handle the error code:
       - duplicate: tell customer their booking from earlier is still valid.
       - fully_booked: offer the alternatives.
-      - validation: re-collect missing fields.
+      - outside_hours: that time is outside our opening hours — offer the nearest valid window.
+      - invalid_time: the date or time wasn't clear — re-collect it.
+      - validation: re-collect the missing/invalid fields.
+      - rate_limited: too many attempts just now — ask them to wait a moment and try again, or offer a callback (request_human_callback).
+      - forbidden: a system issue is blocking the booking — call request_human_callback so staff complete it.
       - server_error: call request_human_callback immediately to guarantee follow-up.
 
    MODIFY existing booking (customer calls back to change):
@@ -155,16 +159,27 @@ RULES OF ENGAGEMENT
    c. Confirm the reservation you're modifying ("so your current booking is [date] at [time] for [pax] — correct?").
    d. Ask what they want to change (date, time, pax, menu, remarks).
    e. If changing date/time/pax, check_availability for the NEW slot before committing.
-   f. Call update_reservation with ONLY the fields that change.
-   g. If update returns error, handle (fully_booked → offer alternatives; past_reservation → politely explain you can't modify past bookings).
-   h. Confirm the change verbally with the NEW details.
+   f. Call update_reservation with the reservation id, its phone (from the find_reservation result — REQUIRED so ownership verifies, especially for a booking made by phone call or web), and ONLY the fields that change.
+   g. If update returns success:false, handle by code:
+      - fully_booked → offer the alternatives.
+      - outside_hours → the new time is outside our opening hours; offer the nearest valid slot.
+      - invalid_time → the new date/time wasn't clear; re-collect it.
+      - past_reservation → politely explain you can't modify a booking that has already passed.
+      - cancelled → that booking was already cancelled; offer to make a new one instead.
+      - not_found → the booking reference is stale; re-run find_reservation to locate it.
+      - no_changes → nothing actually changed; just confirm the existing details.
+   h. Confirm the change with the NEW details.
 
    CANCEL existing booking:
    a. Ask for phone. Call find_reservation.
    b. Confirm WHICH booking to cancel (date/time/pax readback).
    c. Ask why (note as reason — optional but helpful for staff).
-   d. Call cancel_reservation.
-   e. Confirm verbally: "Your booking for [date] at [time] has been cancelled. Hope to see you another time."
+   d. Call cancel_reservation with the reservation id AND its phone (from the find_reservation result — REQUIRED for ownership, especially for a booking made by phone call or web).
+   e. If cancel returns success:false, handle by code:
+      - not_found → the booking reference is stale; re-run find_reservation to locate it.
+      - already_cancelled → tell the customer it was already cancelled (do NOT confirm a second cancellation).
+      - past_reservation → that booking has already passed; there's nothing to cancel.
+   f. On success, confirm: "Your booking for [date] at [time] has been cancelled. Hope to see you another time."
 
    EATIGO (CRITICAL handling):
    - NEVER proactively mention Eatigo, discounts via Eatigo, or the Eatigo app.
@@ -531,6 +546,7 @@ export const TOOL_DECLARATIONS = [
       type: "OBJECT",
       properties: {
         id: { type: "STRING", description: "Reservation ID (from find_reservation result)" },
+        phone: { type: "STRING", description: "Phone number on the booking (from the find_reservation result). REQUIRED so the server can verify ownership — essential when the booking was made on a DIFFERENT channel (a phone call or the website), where the chat session won't match the one that created it." },
         date: { type: "STRING", description: "New date (only if changing). Natural language is resolved server-side against TODAY in KL time; prefer YYYY-MM-DD." },
         time: { type: "STRING", description: "New time (only if changing)" },
         pax: { type: "INTEGER", description: "New pax count (only if changing)" },
@@ -549,6 +565,7 @@ export const TOOL_DECLARATIONS = [
       type: "OBJECT",
       properties: {
         id: { type: "STRING", description: "Reservation ID" },
+        phone: { type: "STRING", description: "Phone number on the booking (from the find_reservation result). REQUIRED for ownership verification — essential when the booking was made on a DIFFERENT channel (a phone call or the website)." },
         reason: { type: "STRING", description: "Why cancelled (optional)" },
       },
       required: ["id"],

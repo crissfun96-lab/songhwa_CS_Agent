@@ -16,7 +16,7 @@
 
 import { log } from "@/lib/logger";
 import { getDb } from "../firebase-admin";
-import { loadHistory, appendMessage, type ConvMessage } from "./conversation";
+import { loadHistory, appendMessage, sanitizeHistoryForModel, type ConvMessage } from "./conversation";
 import { callGemini, toGeminiContents } from "./gemini-text";
 import { sendText } from "./meta-client";
 import { resolveFinalReply, isMutatingTool, type ToolOutcome } from "./reply-resolution";
@@ -55,6 +55,13 @@ interface InboundMessage {
 // A message whose `claimedAt` is older than this is treated as a stale claim
 // (the claiming run probably crashed mid-flight) and may be re-claimed.
 const STALE_CLAIM_MS = 5 * 60 * 1000;
+
+// Sent when a customer messages a non-text payload (image / audio / sticker / location)
+// that we can't read yet. A human host would never go silent — acknowledge in EN/中文/BM.
+const NONTEXT_REPLY =
+  "Hi! 🙏 I can only read typed messages here — please type your request and I'll help right away.\n" +
+  "您好！我目前只能阅读文字信息，请用文字告诉我您的需求。\n" +
+  "Hai! Sila taip mesej anda ya, saya akan terus bantu.";
 
 const APP_BASE_URL =
   process.env.NEXT_PUBLIC_APP_URL?.trim() ||
@@ -234,9 +241,20 @@ export async function processInboundMessage(
   // replyText should be persisted as pendingReply for a later idempotent re-send.
   retryable?: boolean;
 }> {
-  // Skip non-text messages for now (audio support comes later via Mesolitica/Deepgram)
-  if (msg.type !== "text" || !msg.text?.trim()) {
-    return { ok: true, replyText: undefined };
+  // Check conversation mode — stay SILENT if a human handoff is active. Checked FIRST
+  // (before the non-text reply below) so we never talk over a human agent, whatever the
+  // message type.
+  const mode = await getWaConversationMode(msg.from, tenantId);
+  if (mode === "human") {
+    return { ok: true, error: "human_mode — AI silent" };
+  }
+
+  // Billing gate: if this tenant isn't serviceable (suspended / cancelled /
+  // trial expired / over quota), skip SILENTLY — never reply, so we don't
+  // spam a suspended tenant's customers. Fail-open keeps active tenants live.
+  const s = await tenantServiceState(tenantId);
+  if (!s.serviceable) {
+    return { ok: true, error: `service_${s.reason} — skipped` };
   }
 
   // IDEMPOTENT RETRY FAST-PATH — a prior run computed the reply but failed to DELIVER it
@@ -258,18 +276,17 @@ export async function processInboundMessage(
     }
   }
 
-  // Check conversation mode — silent if human handoff is active
-  const mode = await getWaConversationMode(msg.from, tenantId);
-  if (mode === "human") {
-    return { ok: true, error: "human_mode — AI silent" };
-  }
-
-  // Billing gate: if this tenant isn't serviceable (suspended / cancelled /
-  // trial expired / over quota), skip SILENTLY — never reply, so we don't
-  // spam a suspended tenant's customers. Fail-open keeps active tenants live.
-  const s = await tenantServiceState(tenantId);
-  if (!s.serviceable) {
-    return { ok: true, error: `service_${s.reason} — skipped` };
+  // Non-text messages (image / audio / sticker / location): we can't read them yet, but a
+  // human host would never go silent. Acknowledge and ask for text. (After the gates above,
+  // so a human-handoff / suspended tenant still stays silent.)
+  if (msg.type !== "text" || !msg.text?.trim()) {
+    try {
+      await sendText(msg.from, NONTEXT_REPLY);
+    } catch (err) {
+      log.warn({ event: "wa_nontext_ack_failed", phone: msg.from, err, tenantId });
+      return { ok: false, retryable: true, replyText: NONTEXT_REPLY, error: "send_failed" };
+    }
+    return { ok: true, replyText: NONTEXT_REPLY };
   }
 
   const customerPhone = msg.from;
@@ -292,8 +309,10 @@ export async function processInboundMessage(
   };
   await appendMessage(customerPhone, userMsg, msg.customerName ?? undefined, tenantId);
 
-  // Tool-call loop (Gemini may need multiple rounds to satisfy the user)
-  const contents = toGeminiContents([...history, userMsg]);
+  // Tool-call loop (Gemini may need multiple rounds to satisfy the user).
+  // sanitizeHistoryForModel drops any leading dangling tool turn the MAX_TURNS trim may
+  // have orphaned, so Gemini never 400s on an unmatched functionResponse (silent-customer P1).
+  const contents = toGeminiContents(sanitizeHistoryForModel([...history, userMsg]));
   let finalText: string | null = null;
   let lastMutation: ToolOutcome | null = null;
 

@@ -29,6 +29,28 @@ function phoneKey(phone: string): string {
   return phone.replace(/\D/g, "") || "unknown";
 }
 
+// Make a history window safe to feed to Gemini. `appendMessage` trims with a blind
+// `.slice(-MAX_TURNS)`, which can cut THROUGH a functionCall→functionResponse pair and
+// leave the window starting on an orphan functionResponse (or a model functionCall whose
+// response was trimmed). Gemini rejects a functionResponse with no preceding functionCall
+// (HTTP 400), which would crash the dispatcher and leave the customer on silent read.
+// Drop leading dangling tool turns so the window starts on a real turn (user, or model text).
+// Pure + non-mutating.
+export function sanitizeHistoryForModel(messages: ConvMessage[]): ConvMessage[] {
+  let start = 0;
+  while (start < messages.length) {
+    const m = messages[start];
+    const isOrphanResponse = m.role === "function";
+    const isDanglingCall = m.role === "model" && !!m.functionCall;
+    if (isOrphanResponse || isDanglingCall) {
+      start++;
+    } else {
+      break;
+    }
+  }
+  return start === 0 ? messages : messages.slice(start);
+}
+
 export async function loadHistory(
   phone: string,
   tenantId: string = DEFAULT_TENANT_ID,
