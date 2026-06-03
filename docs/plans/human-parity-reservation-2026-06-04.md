@@ -118,5 +118,18 @@ The phone agent's `request_human_handoff` is a *function* tool that just returns
 ### ✅ FIXED & deployed
 - [x] **P2 — Phone agent discarded caller-ID, forcing the caller to recite their number** — Vapi provides `call.customer.number` but the route ignored it. **Fix:** `executeTool` now defaults every phone-needing tool (lookup_customer, find_reservation, save_reservation_draft, create_reservation, cancel_reservation, update_reservation ownership) to the caller-ID when the model omits `phone` — the model can still override. A human receptionist sees the caller's number; now so does ours. (Also tags phone-origin creates with `channel:"phone"` — which correctly still RECEIVES the WhatsApp confirmation, unlike WhatsApp-origin.)
 
+## Iteration 10 — reminder-cron retry (2026-06-04)
+
+### ✅ FIXED & deployed
+- [x] **P2 — A missed day-before reminder was PERMANENTLY lost** — the cron ran once daily querying `date == tomorrow`; a transient Meta outage in that single window meant `reminderSentAt` was never set and the booking's date was never `== tomorrow` again → no reminder, ever, no staff visibility. **Fix:** sweep BOTH `tomorrow` and `today` (`reminderSweepDates`, TDD 3 tests) — the `today` pass is a same-day RETRY for a reminder missed on the prior day's run; `reminderSentAt` still dedups so no double-send. Reuses the proven `date==X AND status==confirmed` query shape (no new composite index). On failure now stamps `reminderFailedAt`; on a today-pass (final) failure, alerts staff via Telegram (`sendToStaffRaw`) to remind manually. Also fixed `sendBookingReminder`'s text fallback which hardcoded "tomorrow" (wrong for a same-day retry) → date-explicit. Extracted the date math to `lib/reservations/reminder-schedule.ts` (pure, testable).
+
+### ⬜ Remaining (lower-tier / external)
+- [ ] **P2 — per-inbound-message create idempotency key** (`metaMessageId`) — belt-and-braces beyond the 60-min dup guard + pendingReply fast-path (double-book already well-mitigated).
+- [ ] **P2 — Vapi tool-schema is a hand-maintained fork** of TOOL_DECLARATIONS (drift risk) — generate it from the canonical list.
+- [ ] **P2 — WhatsApp assumes sender==booking number** for lookup/modify (confirm before acting).
+- [ ] **P2 (F1) — failed create on the final tool round → generic msg instead of the route's alternatives** (rare path).
+- [ ] **P3 — web proactive greeting; resolveFinalReply English fallback strings** (rare no-model-text path).
+- [ ] **P1 — Vapi phone dead-transfer** — _needs Chris_ (transferCall tool + staff number + dashboard re-import; runbook in iteration 8).
+
 ## Test ledger
-- 126 tests (0→126 this session): +13 `reply-resolution`, +8 `conversation`, +6 `promo-channel`, +5 `business/hours`, on top of the prior 94.
+- 129 tests (0→126 this session): +13 `reply-resolution`, +8 `conversation`, +6 `promo-channel`, +5 `business/hours`, on top of the prior 94.

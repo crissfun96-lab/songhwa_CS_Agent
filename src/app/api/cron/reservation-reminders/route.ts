@@ -12,25 +12,17 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/firebase-admin";
 import { listActiveTenants } from "@/lib/tenants/firestore";
 import { tc } from "@/lib/tenants/collection";
-import { getKlNow } from "@/lib/menu/firestore";
+import { reminderSweepDates } from "@/lib/reservations/reminder-schedule";
 import { sendBookingReminder, isMetaWaConfigured } from "@/lib/whatsapp/meta-client";
+import { sendToStaffRaw } from "@/lib/telegram";
 import { verifyBearer } from "@/lib/auth-secret";
 import { log } from "@/lib/logger";
 import type { Reservation } from "@/lib/types";
-
-const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 interface TenantReminderResult {
   tenantId: string;
   sent: number;
   failed: number;
-}
-
-// Tomorrow's date as YYYY-MM-DD in Asia/Kuala_Lumpur. We advance the absolute
-// instant by 24h, then read the KL calendar date of that instant — correct
-// across midnight boundaries and independent of the server's local timezone.
-function tomorrowKlDate(now: Date = new Date()): string {
-  return getKlNow(new Date(now.getTime() + ONE_DAY_MS)).date;
 }
 
 export async function GET(request: Request) {
@@ -45,7 +37,8 @@ export async function GET(request: Request) {
   }
 
   try {
-    const tomorrow = tomorrowKlDate();
+    const sweepDates = reminderSweepDates();
+    const todayDate = sweepDates[1];
     const tenants = await listActiveTenants();
     let sent = 0;
     const perTenant: TenantReminderResult[] = [];
@@ -54,32 +47,46 @@ export async function GET(request: Request) {
       const tenantResult: TenantReminderResult = { tenantId: tenant.id, sent: 0, failed: 0 };
 
       try {
-        const snap = await getDb()
-          .collection(tc(tenant.id, "reservations"))
-          .where("date", "==", tomorrow)
-          .where("status", "==", "confirmed")
-          .get();
+        // Sweep tomorrow (day-before) then today (same-day retry for a missed reminder).
+        for (const dateKey of sweepDates) {
+          const isLastChance = dateKey === todayDate; // no retry window after today
+          const snap = await getDb()
+            .collection(tc(tenant.id, "reservations"))
+            .where("date", "==", dateKey)
+            .where("status", "==", "confirmed")
+            .get();
 
-        for (const doc of snap.docs) {
-          const reservation = doc.data() as Reservation;
+          for (const doc of snap.docs) {
+            const reservation = doc.data() as Reservation;
 
-          // Idempotency: skip anything we've already reminded.
-          if (reservation.reminderSentAt) continue;
+            // Idempotency: skip anything we've already reminded.
+            if (reservation.reminderSentAt) continue;
 
-          // Per-reservation try/catch so one failure never aborts the batch.
-          try {
-            await sendBookingReminder(reservation);
-            await doc.ref.update({ reminderSentAt: new Date().toISOString() });
-            tenantResult.sent += 1;
-            sent += 1;
-          } catch (err) {
-            tenantResult.failed += 1;
-            log.error({
-              event: "reservation_reminder_send_failed",
-              tenantId: tenant.id,
-              reservationId: reservation.id,
-              err,
-            });
+            // Per-reservation try/catch so one failure never aborts the batch.
+            try {
+              await sendBookingReminder(reservation);
+              await doc.ref.update({ reminderSentAt: new Date().toISOString() });
+              tenantResult.sent += 1;
+              sent += 1;
+            } catch (err) {
+              tenantResult.failed += 1;
+              await doc.ref.update({ reminderFailedAt: new Date().toISOString() }).catch(() => {});
+              log.error({
+                event: "reservation_reminder_send_failed",
+                tenantId: tenant.id,
+                reservationId: reservation.id,
+                lastChance: isLastChance,
+                err,
+              });
+              // After today there is no further retry window — alert staff to remind manually.
+              if (isLastChance) {
+                sendToStaffRaw(
+                  `⚠️ Reminder could not be delivered to ${reservation.name} (${reservation.phone}) ` +
+                    `for booking ${reservation.date} at ${reservation.time}, ${reservation.pax} pax. ` +
+                    `Please remind them manually.`,
+                ).catch(() => {});
+              }
+            }
           }
         }
       } catch (err) {
@@ -92,7 +99,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       success: true,
-      date: tomorrow,
+      dates: sweepDates,
       sent,
       tenants: perTenant.length,
       perTenant,

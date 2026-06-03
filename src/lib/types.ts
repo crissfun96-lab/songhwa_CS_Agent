@@ -30,6 +30,7 @@ export interface Reservation {
   cancelReason?: string;
   createdBySessionId?: string;   // for ownership verification on PATCH/DELETE
   reminderSentAt?: string;       // ISO timestamp set by reservation-reminders cron (idempotency guard)
+  reminderFailedAt?: string;     // ISO timestamp of the last failed reminder send (visibility / retry tracking)
 }
 
 export interface CustomerProfile {

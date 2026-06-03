@@ -189,7 +189,7 @@ export async function sendBookingReminder(r: Reservation): Promise<void> {
     log.warn({ event: "meta_wa_reminder_template_fallback_to_text", err });
     await sendText(
       r.phone,
-      `Reminder: your Songhwa booking is tomorrow — ${r.date} at ${r.time}, ${r.pax} pax. See you!`,
+      `Reminder: your Songhwa booking — ${r.date} at ${r.time}, ${r.pax} pax. See you!`,
     );
   }
 }
