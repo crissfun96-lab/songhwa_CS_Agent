@@ -10,6 +10,7 @@ import { resolveDate } from "@/lib/reservations/date-resolver";
 import { sendReservationUpdateNotification, sendReservationCancelNotification } from "@/lib/telegram";
 import { enqueueReservationUpdate, enqueueReservationCancel } from "@/lib/wa-queue";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { isTrustedInternalCall } from "@/lib/auth-secret";
 import { resolveTenantId } from "@/lib/tenants/resolver";
 import { tc } from "@/lib/tenants/collection";
 import { log } from "@/lib/logger";
@@ -68,14 +69,18 @@ export async function PATCH(
     const body = await request.json();
     const parsed = UpdateSchema.parse(body);
 
-    // Rate limit per IP + reservation ID (prevents enumeration + DoS)
-    const ip = getClientIp(request);
-    const limit = await rateLimit(`res-patch:${ip}`, { limit: 20, windowSeconds: 3600 });
-    if (!limit.allowed) {
-      return NextResponse.json(
-        { success: false, error: "Too many requests. Try again later." },
-        { status: 429 },
-      );
+    // IP limit for PUBLIC callers only — trusted internal bridges (WA/Vapi) share one egress
+    // IP, so an IP bucket would collapse all customers into one limit. Ownership is verified
+    // below regardless, so a trusted agent-driven modify is safe to skip the IP cap.
+    if (!isTrustedInternalCall(request)) {
+      const ip = getClientIp(request);
+      const limit = await rateLimit(`res-patch:${ip}`, { limit: 20, windowSeconds: 3600 });
+      if (!limit.allowed) {
+        return NextResponse.json(
+          { success: false, error: "Too many requests. Try again later." },
+          { status: 429 },
+        );
+      }
     }
 
     const tenantId = resolveTenantId(request);
@@ -167,13 +172,17 @@ export async function DELETE(
       // empty body acceptable, but ownership check will fail without sessionId/phone
     }
 
-    const ip = getClientIp(request);
-    const limit = await rateLimit(`res-delete:${ip}`, { limit: 10, windowSeconds: 3600 });
-    if (!limit.allowed) {
-      return NextResponse.json(
-        { success: false, error: "Too many requests." },
-        { status: 429 },
-      );
+    // IP limit for PUBLIC callers only (see PATCH note) — trusted internal bridges skip it;
+    // ownership is verified below.
+    if (!isTrustedInternalCall(request)) {
+      const ip = getClientIp(request);
+      const limit = await rateLimit(`res-delete:${ip}`, { limit: 10, windowSeconds: 3600 });
+      if (!limit.allowed) {
+        return NextResponse.json(
+          { success: false, error: "Too many requests." },
+          { status: 429 },
+        );
+      }
     }
 
     const tenantId = resolveTenantId(request);

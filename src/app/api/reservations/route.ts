@@ -16,6 +16,7 @@ import { normalizePhone } from "@/lib/reservations/lifecycle";
 import { enqueueNewReservation } from "@/lib/wa-queue";
 import { sendBookingConfirmation } from "@/lib/whatsapp/meta-client";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { isTrustedInternalCall } from "@/lib/auth-secret";
 import { emitAsync } from "@/lib/metering/firestore";
 import { resolveTenantId } from "@/lib/tenants/resolver";
 import { tc } from "@/lib/tenants/collection";
@@ -97,13 +98,19 @@ export async function POST(request: Request): Promise<NextResponse<CreateReserva
       );
     }
 
-    const ip = getClientIp(request);
-    const ipLimit = await rateLimit(`reservation-ip:${ip}`, { limit: 10, windowSeconds: 3600 });
-    if (!ipLimit.allowed) {
-      return NextResponse.json(
-        { success: false, error: "Too many reservation attempts. Please wait.", code: "rate_limited" },
-        { status: 429, headers: { "Retry-After": String(ipLimit.resetInSeconds) } },
-      );
+    // IP abuse limit applies to PUBLIC (browser/web) callers only. Trusted internal bridges
+    // (WhatsApp dispatcher / Vapi) self-fetch from one Vercel egress IP, so an IP bucket would
+    // collapse every WA/phone customer (and tenant) into one limit and refuse real bookings
+    // during a rush. They are gated per-customer by the per-phone limit below instead.
+    if (!isTrustedInternalCall(request)) {
+      const ip = getClientIp(request);
+      const ipLimit = await rateLimit(`reservation-ip:${ip}`, { limit: 10, windowSeconds: 3600 });
+      if (!ipLimit.allowed) {
+        return NextResponse.json(
+          { success: false, error: "Too many reservation attempts. Please wait.", code: "rate_limited" },
+          { status: 429, headers: { "Retry-After": String(ipLimit.resetInSeconds) } },
+        );
+      }
     }
 
     const body = await request.json();
@@ -111,8 +118,9 @@ export async function POST(request: Request): Promise<NextResponse<CreateReserva
     const tenantId = resolveTenantId(request);
     const COLLECTION = tc(tenantId, "reservations");
 
-    // Per-phone limit to stop a single number being spammed across IPs
-    const phoneLimit = await rateLimit(`reservation-phone:${parsed.phone}`, { limit: 5, windowSeconds: 3600 });
+    // Per-phone limit to stop a single number being spammed (tenant-scoped so tenants
+    // never share a customer's bucket). This isolates per customer — no IP collapse.
+    const phoneLimit = await rateLimit(`reservation-phone:${tenantId}:${parsed.phone}`, { limit: 5, windowSeconds: 3600 });
     if (!phoneLimit.allowed) {
       return NextResponse.json(
         { success: false, error: "Too many reservations from this phone today. Call us directly.", code: "rate_limited" },

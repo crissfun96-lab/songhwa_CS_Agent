@@ -23,6 +23,17 @@ export function constantTimeStringEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
+// True when a request carries a valid X-Foxie-Internal-Secret — i.e. it originates from a
+// TRUSTED server-side bridge (the WhatsApp dispatcher / Vapi phone route), not the public
+// internet. These bridges self-fetch our own API, so they all share the one Vercel egress
+// IP; IP-based abuse limits are meaningless (and harmful) for them. Callers use this to skip
+// the IP rate-limit bucket while keeping per-phone limits. Mirrors resolver.ts's check.
+export function isTrustedInternalCall(request: Request): boolean {
+  const headerSecret = request.headers.get("x-foxie-internal-secret");
+  const expectedSecret = process.env.FOXIE_INTERNAL_SECRET?.trim();
+  return Boolean(headerSecret && expectedSecret && constantTimeStringEqual(headerSecret, expectedSecret));
+}
+
 // Verify "Authorization: Bearer <secret>" header against an env-stored secret.
 // Returns false if env unset, header missing, or mismatched.
 export function verifyBearer(

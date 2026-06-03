@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { lookupCustomerByPhone, lookupCustomerByName } from "@/lib/customers";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { isTrustedInternalCall } from "@/lib/auth-secret";
 import { resolveTenantId } from "@/lib/tenants/resolver";
 import { log } from "@/lib/logger";
 
@@ -24,14 +25,18 @@ export async function GET(request: Request) {
     );
   }
 
-  // Rate limit — prevent enumeration of customer database
-  const ip = getClientIp(request);
-  const ipLimit = await rateLimit(`customers-ip:${ip}`, { limit: 50, windowSeconds: 3600 });
-  if (!ipLimit.allowed) {
-    return NextResponse.json(
-      { success: false, error: "Too many lookups." },
-      { status: 429, headers: { "Retry-After": String(ipLimit.resetInSeconds) } },
-    );
+  // IP limit for PUBLIC callers only — trusted internal bridges (WA/Vapi) share one egress IP
+  // (lookup_customer fires on every WhatsApp conversation's first reply), so an IP bucket would
+  // collapse all customers. The per-key limit below still throttles dictionary attacks.
+  if (!isTrustedInternalCall(request)) {
+    const ip = getClientIp(request);
+    const ipLimit = await rateLimit(`customers-ip:${ip}`, { limit: 50, windowSeconds: 3600 });
+    if (!ipLimit.allowed) {
+      return NextResponse.json(
+        { success: false, error: "Too many lookups." },
+        { status: 429, headers: { "Retry-After": String(ipLimit.resetInSeconds) } },
+      );
+    }
   }
 
   // Per-key limit (attacker dictionary attack throttled)

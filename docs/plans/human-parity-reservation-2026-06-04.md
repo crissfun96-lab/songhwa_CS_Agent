@@ -131,5 +131,18 @@ The phone agent's `request_human_handoff` is a *function* tool that just returns
 - [ ] **P3 — web proactive greeting; resolveFinalReply English fallback strings** (rare no-model-text path).
 - [ ] **P1 — Vapi phone dead-transfer** — _needs Chris_ (transferCall tool + staff number + dashboard re-import; runbook in iteration 8).
 
+## Iteration 11 — convergence RE-REVIEW + rate-limit collapse fix (2026-06-04)
+
+Ran the capstone convergence re-review (3 lenses) over iterations 7-10. **7 confirmed (1 P1, 3 P2, 3 P3); verdict "P0/P1 REMAIN".** It surfaced a real pre-existing P1 plus several second-order effects of my own recent fixes — exactly its job.
+
+### ✅ FIXED & deployed
+- [x] **P1 (F1) — WhatsApp + phone bookings shared ONE server-IP rate-limit bucket** — both channels self-fetch the internal API from Vercel's single egress IP (no per-customer IP), so the IP-keyed limits (reservation-ip 10/hr, res-find-ip 30/hr, res-patch 20/hr, res-delete 10/hr, customers-ip 50/hr) collapsed into one bucket shared across ALL customers AND ALL tenants. The 11th WA/phone booking in an hour got `rate_limited` — the agent refusing a real guest because someone else just booked, during exactly the rush when bookings matter. **Fix:** new `isTrustedInternalCall(request)` (shared, constant-time secret check); the IP bucket is now SKIPPED for trusted internal (WA/Vapi) calls across all 5 routes — they're gated per-customer by the per-phone/per-key limits instead (which don't collapse). Per-phone create key is now tenant-scoped. Public/browser path keeps the IP limit unchanged.
+
+### ⬜ Confirmed, queued (next iteration)
+- [ ] **P2 (R2, my iter-10 regression) — today-pass reminds for already-passed times** — the 6pm cron's same-day sweep sends a "reminder" for a today-lunch slot that already passed. Fix: skip today-pass reservations whose normalized time <= now (KL).
+- [ ] **P2 (R3, my iter-10 regression) — staff-alert storm** — a full Meta outage fans out one Telegram per failed reservation. Fix: aggregate into one summary alert.
+- [ ] **P2 (F2) — confirmation echoes the model's RAW date/time, not the canonical stored value** — return the resolved reservation and build the confirmation from it.
+- [ ] **P3 (×3, fix-interactions in my recent changes):** upsertDraft un-converts a just-succeeded booking if save_reservation_draft is called after create (WA-DRAFT-UNCONVERT-AFTER-SUCCESS); repeat booker's failed 2nd create un-converts the 1st's draft (R1) — both → make un-convert intent-aware (only when fields DIFFER); pendingReply-above-gates re-delivers non-booking acks to a suspended tenant (WA-PENDING-FASTPATH-OVERBROAD) → tag confirmations only.
+
 ## Test ledger
 - 129 tests (0→126 this session): +13 `reply-resolution`, +8 `conversation`, +6 `promo-channel`, +5 `business/hours`, on top of the prior 94.
