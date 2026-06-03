@@ -118,6 +118,34 @@ describe("isCapacityExceeded — exclusions", () => {
   });
 });
 
+describe("isCapacityExceeded — reschedule semantics (exclude-self, used by the in-txn guard)", () => {
+  it("rejects moving a booking into a slot already full of OTHER parties", () => {
+    const day = [
+      res("7:00 PM", 100, { id: "other" }), // the room is already full at 19:00
+      res("6:00 PM", 30, { id: "resv" }),   // the booking being moved (currently at 18:00)
+    ];
+    // Move "resv" (30 pax) into 19:00 → excluding itself, OTHER parties already total 100 → reject.
+    expect(isCapacityExceeded(day, "7:00 PM", 30, "resv")).toBe(true);
+  });
+
+  it("allows increasing pax in place when capacity (excluding self) still fits", () => {
+    const day = [res("7:00 PM", 60, { id: "resv" })]; // only this booking at 19:00
+    expect(isCapacityExceeded(day, "7:00 PM", 100, "resv")).toBe(false); // 60→100 fits exactly
+    expect(isCapacityExceeded(day, "7:00 PM", 101, "resv")).toBe(true);  // 60→101 overflows
+  });
+
+  it("counts OTHER overlapping turns when a reschedule raises pax", () => {
+    const day = [
+      res("7:00 PM", 60, { id: "resv" }),  // being bumped to 80
+      res("7:30 PM", 40, { id: "other" }), // overlaps [19:30,21:30) ∩ [19:00,21:00)
+    ];
+    // Excluding self: other=40 overlaps → 40 + 80 = 120 > 100 → reject the bump.
+    expect(isCapacityExceeded(day, "7:00 PM", 80, "resv")).toBe(true);
+    // 40 + 60 = 100 → keeping pax the same is fine.
+    expect(isCapacityExceeded(day, "7:00 PM", 60, "resv")).toBe(false);
+  });
+});
+
 describe("isCapacityExceeded — guards", () => {
   it("treats outside-hours as exceeded (defensive — caller validates first)", () => {
     expect(isCapacityExceeded([], "4:00 PM", 2)).toBe(true);

@@ -7,7 +7,7 @@ import type {
   Reservation,
   ReservationModification,
 } from "../types";
-import { checkAvailability, normalizeTime } from "./availability";
+import { checkAvailability, isCapacityExceeded, normalizeTime } from "./availability";
 
 // ── Normalize phone for matching ──────────────────────────────
 // Canonical form: always starts with "0" (Malaysian mobile format).
@@ -140,32 +140,34 @@ export async function updateReservation(input: UpdateInput): Promise<UpdateResul
     return { success: false, error: "No changes provided", code: "no_changes" };
   }
 
-  // If date/time/pax changed, re-check availability (unless explicitly skipped)
-  if (!input.skipAvailabilityCheck) {
-    const timeChanged = "date" in changes || "time" in changes;
-    const paxChanged = "pax" in changes;
-    if (timeChanged || paxChanged) {
-      // Exclude this reservation from its own capacity count — it's being moved
-      const avail = await checkAvailability(
-        newState.date,
-        newState.time,
-        newState.pax,
-        input.id,
-        tid,
-      );
-      if (!avail.available) {
-        return {
-          success: false,
-          error:
-            avail.reason === "fully_booked"
-              ? `That slot is full. Try: ${avail.alternatives.map((a) => `${a.date} ${a.time}`).join(", ")}`
-              : avail.reason === "outside_hours"
-                ? "Requested time is outside our operating hours"
-                : "Invalid time format",
-          code: avail.reason,
-          alternatives: avail.alternatives,
-        };
-      }
+  // Capacity matters only when date / time / pax changes (and isn't explicitly skipped).
+  const needsCapacityCheck =
+    !input.skipAvailabilityCheck &&
+    ("date" in changes || "time" in changes || "pax" in changes);
+
+  // Pre-flight check — fast, friendly error + alternatives BEFORE we attempt the write.
+  // (The authoritative re-check happens inside the transaction below.)
+  if (needsCapacityCheck) {
+    // Exclude this reservation from its own capacity count — it's being moved.
+    const avail = await checkAvailability(
+      newState.date,
+      newState.time,
+      newState.pax,
+      input.id,
+      tid,
+    );
+    if (!avail.available) {
+      return {
+        success: false,
+        error:
+          avail.reason === "fully_booked"
+            ? `That slot is full. Try: ${avail.alternatives.map((a) => `${a.date} ${a.time}`).join(", ")}`
+            : avail.reason === "outside_hours"
+              ? "Requested time is outside our operating hours"
+              : "Invalid time format",
+        code: avail.reason,
+        alternatives: avail.alternatives,
+      };
     }
   }
 
@@ -184,7 +186,50 @@ export async function updateReservation(input: UpdateInput): Promise<UpdateResul
     status: current.status ?? "confirmed",
   };
 
-  await ref.set(updated);
+  // Commit inside a transaction so the slot can't be taken between the pre-flight check
+  // above and the write — mirrors the create path in api/reservations/route.ts. When the
+  // move affects capacity, re-read the day INSIDE the transaction and re-run the SAME
+  // turn-time guard (excluding this reservation) before writing.
+  // Scope note: this closes the CAPACITY race (a different booking filling the slot). It
+  // does NOT guard against a concurrent edit/cancel of THIS SAME reservation — `updated`
+  // is built from the read at the top, so a same-document lost-update is still possible.
+  // Fixing that needs a re-read+rebuild inside the txn; tracked as a separate follow-up.
+  try {
+    await db.runTransaction(async (tx) => {
+      if (needsCapacityCheck) {
+        const daySnap = await tx.get(
+          db.collection(tc(tid, "reservations")).where("date", "==", newState.date),
+        );
+        const dayReservations = daySnap.docs.map((d) => d.data() as Reservation);
+        if (isCapacityExceeded(dayReservations, newState.time, newState.pax, input.id)) {
+          throw new Error("race_detected");
+        }
+      }
+      tx.set(ref, updated);
+    });
+  } catch (e) {
+    if (e instanceof Error && e.message === "race_detected") {
+      // The slot filled between the pre-flight check and commit — re-suggest alternatives.
+      const recheck = await checkAvailability(
+        newState.date,
+        newState.time,
+        newState.pax,
+        input.id,
+        tid,
+      );
+      const alternatives =
+        !recheck.available && recheck.reason === "fully_booked" ? recheck.alternatives : [];
+      return {
+        success: false,
+        error: alternatives.length
+          ? `That slot just filled up. Try: ${alternatives.map((a) => `${a.date} ${a.time}`).join(", ")}`
+          : "That slot was just taken — please try again.",
+        code: "fully_booked",
+        alternatives,
+      };
+    }
+    throw e;
+  }
 
   // Log for observability
   console.log(

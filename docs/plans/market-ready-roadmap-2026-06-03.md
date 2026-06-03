@@ -78,7 +78,10 @@ One shared `ADMIN_USERNAME/PASSWORD` fronts admin routes wired to `songhwa_*`. T
 - [x] **Welcome page overclaims** — ✅ DONE (Cycle 5). Killed the false "a confirmation email is on its way" (no mailer exists) + the "Payment confirmed" assertion (monetization loop disconnected); copy is now honest in both wired/unwired states, tied to the real WhatsApp onboarding.
 
 ## 🔁 Cycle 5 follow-up (surfaced by the turn-time adversarial review)
-- [ ] **Reschedule write is not transaction-wrapped** (MEDIUM) — `lifecycle.ts updateReservation` does `checkAvailability` then a plain `ref.set()` outside any transaction. The customer-reachable reschedule path can race a concurrent booking; the new turn-time model *widens* the race window (any overlapping turn can tip the peak, not just the same 30-min slot). Fix: mirror `reservations/route.ts` — re-fetch the day inside `db.runTransaction` + `isCapacityExceeded(..., input.id)` before `tx.set`. (Pre-existing; deliberately scoped out of the tested turn-time hotfix.)
+- [x] **Reschedule write is not transaction-wrapped** — ✅ **DONE & deployed (Cycle 7)**. `lifecycle.updateReservation` now commits inside `db.runTransaction`: when the move affects capacity it re-fetches the day via `tx.get(query)` and re-runs `isCapacityExceeded(..., input.id)` before `tx.set` (reads-before-writes), throwing `race_detected` → friendly `fully_booked` + fresh alternatives. Mirrors `reservations/route.ts`. Kept the pre-flight `checkAvailability` for fast/friendly errors. TDD (3 reschedule exclude-self tests, 52/52), adversarial-verify → SAFE, build green.
+
+## 🔁 Cycle 7 follow-up (surfaced by the reschedule adversarial review)
+- [ ] **Same-document lost-update on reschedule** (MEDIUM, pre-existing) — `updated` is built from the read at the top of `updateReservation`, so a concurrent edit/cancel of the SAME reservation can still be clobbered (the txn only guards the *capacity* race, not this doc). Proper fix: re-read `current` + rebuild the diff INSIDE the transaction. Narrow (two concurrent edits to one booking); not worsened by Cycle 7.
 
 ## ⚪ P2 — Nice-to-have
 - [ ] Phone ordering (takeaway/pickup) — net-new revenue function.
