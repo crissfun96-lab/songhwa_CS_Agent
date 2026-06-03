@@ -101,5 +101,17 @@ Ran a 3-lens re-review (regression / fix-incomplete / fresh-blockers) after 5 fi
 - [ ] **P2 — per-inbound-message create idempotency key** (`metaMessageId`) — belt-and-braces beyond the 60-min dup guard + pendingReply fast-path.
 - [ ] **P2 — remaining parity polish:** phone caller-ID discarded; cross-channel success-message wording; Vapi schema hand-fork drift; WhatsApp sender==booking-number assumption. **P3:** web proactive greeting.
 
+## Iteration 8 — cross-channel consistency + Chris runbook (2026-06-04)
+
+### ✅ FIXED & deployed
+- [x] **P2 — Cross-channel success-message inconsistency / unverifiable claims** — the three channels returned different confirmations that asserted fire-and-forget side effects ("Staff notified via Telegram and WhatsApp" / "via Telegram" / "Staff notified") which can be false if the notification fails. **Fix:** standardized all three (vapi/route.ts, page.tsx, dispatcher.ts) to one channel-agnostic, always-true line: `Booking confirmed for {name}, {pax} pax on {date} at {time}. We look forward to seeing you!`
+
+### 📋 NEEDS CHRIS — Vapi phone "transfer to a manager NOW" (the last P1)
+The phone agent's `request_human_handoff` is a *function* tool that just returns a spoken message — it does NOT bridge the call, so "transfer me to a manager now" strands the caller. Vapi can only do a real live transfer via a native `transferCall` tool. I am deliberately NOT editing the live `docs/vapi/songhwa-assistant.json` with a guessed schema (a bad re-import would break the live receptionist). Runbook for Chris:
+1. In the Vapi dashboard (or the assistant JSON), add a tool of `"type": "transferCall"` with `destinations: [{ "type": "number", "number": "<STAFF/MANAGER PHONE in E.164, e.g. +60xxxxxxxxx>", "message": "Connecting you to our team now." }]`.
+2. In the system prompt's LIVE-HANDOFF rule, when on the PHONE channel and the customer wants a person NOW, call `transferCall` instead of (or in addition to) `request_human_handoff`.
+3. Re-import / save the assistant in Vapi, then test a real call: "I want to speak to a manager now" → call should bridge.
+   (Needs Chris's staff phone number + dashboard access; cannot be tested from code.)
+
 ## Test ledger
 - 126 tests (0→126 this session): +13 `reply-resolution`, +8 `conversation`, +6 `promo-channel`, +5 `business/hours`, on top of the prior 94.

@@ -136,7 +136,7 @@ async function executeTool(
         });
         const j = await r.json();
         return j.success
-          ? { saved: true, message: `Booking confirmed for ${args.name}, ${args.pax} pax on ${args.date} at ${args.time}. Staff notified via Telegram and WhatsApp.` }
+          ? { saved: true, message: `Booking confirmed for ${args.name}, ${args.pax} pax on ${args.date} at ${args.time}. We look forward to seeing you!` }
           : { saved: false, ...j };
       }
       case "update_reservation": {

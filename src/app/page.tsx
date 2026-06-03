@@ -242,7 +242,7 @@ async function callTool(
         });
         const j = await res.json();
         if (j.success) {
-          return `Reservation saved successfully for ${payload.name}, ${payload.pax} guests on ${payload.date} at ${payload.time}. Staff has been notified via Telegram.`;
+          return `Booking confirmed for ${payload.name}, ${payload.pax} pax on ${payload.date} at ${payload.time}. We look forward to seeing you!`;
         }
         // Preserve error code + alternatives so agent can handle gracefully
         return JSON.stringify({ saved: false, ...j });
