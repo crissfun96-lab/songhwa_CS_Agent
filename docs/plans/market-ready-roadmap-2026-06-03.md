@@ -35,30 +35,42 @@ One shared `ADMIN_USERNAME/PASSWORD` fronts admin routes wired to `songhwa_*`. T
 - [ ] Derive `tenantId` server-side from session (NEVER from `?tenantId=` — `/admin/metering` currently trusts the query param).
 - [ ] Every admin route reads/writes via `tc(tenantId, …)`; assert session tenant == resolved collection.
 
-### P0-3 — Multi-tenant WhatsApp inbound  ·  ~0.5–1 day
-`wa-dispatch` cron runs only the default tenant; non-Songhwa inbound is never answered. Cron is **daily** despite "every minute" comments; unguarded fire-and-forget can double-reply.
-- [ ] `listActiveTenants()` + iterate in `wa-dispatch` and `wa-queue-health`.
-- [ ] Atomically CLAIM each message (tx `processing=true`) to serialize concurrent runs.
-- [ ] Fix cron cadence/comments (or commit fully to webhook-triggered dispatch).
+### P0-3 — Multi-tenant WhatsApp inbound  ·  **✅ DONE & deployed (Cycle 2)**
+- [x] `listActiveTenants()` + per-tenant iteration in `wa-dispatch` + `wa-queue-health` (Songhwa always included).
+- [x] Atomic Firestore-transaction CLAIM (`processing=true` + 5-min stale recovery) → cron + webhook can't double-reply. Reviewed (claim confirmed correct), build green, deployed.
+- [x] Cadence comments corrected (daily cron = safety-net; webhook = real-time).
 
-### P0-4 — Billing lifecycle  ·  ~few days
-Trial never converts; `tenant.status` never gates service; tier caps never enforced (uncapped Gemini/Vapi cost on us); Stripe `success_url` → `/business/welcome` **404s**.
-- [ ] Build `/business/welcome` (quick).
-- [ ] Daily cron: suspend trials past `trialEndsAt` w/o active sub; email checkout link.
-- [ ] Enforce `tenant.status` on every inbound channel (voice/WA) — suspended = polite "service paused".
-- [ ] Wire `getLiveMonthUsage` → enforce tier caps / overage.
+### P0-4 — Billing lifecycle  ·  **✅ DONE & deployed (Cycle 2–3)** (1 follow-up: email)
+- [x] `/business/welcome` (Cycle 2 — no more post-payment 404).
+- [x] `billing-lifecycle` daily cron: suspends expired unpaid trials (`status→suspended`).
+- [x] `tenantServiceState()` gate enforces `status` on inbound voice (`/api/menu/config` 403) + WA (silent skip). **Fail-open**: Songhwa active/pro always serviceable (verified live: config still 200).
+- [x] Tier caps enforced via `getLiveMonthUsage` (`-1` = unlimited → never blocks pro/enterprise).
+- [ ] _Follow-up:_ email the Stripe checkout link to suspended owners (no mailer in repo yet — cron currently logs the TODO).
 
 ---
 
 ## 🟠 P1 — First month after first external sale
-- [ ] **Reservation: customer confirmation** — `sendBookingConfirmation()` exists but is never called (template + text fallback). [was finding #1]
-- [ ] **Reservation: day-before reminder cron** — `sendBookingReminder()` exists, never scheduled. [finding #4]
-- [ ] **Availability turn-time** — a 7pm booking frees seats at 7:30; overbooks across a service. [finding #2]
-- [ ] **Smart date resolver** — server-side "this Saturday/tomorrow" → canonical KL date. [finding #3]
+- [x] **Reservation: customer confirmation** — ✅ wired into `create_reservation` (template-first + non-throwing text fallback, env-guarded). _Needs: Meta-approved `booking_confirmation` template._
+- [x] **Reservation: day-before reminder cron** — ✅ `reservation-reminders` daily cron (KL tomorrow, `reminderSentAt` idempotency). _Needs: Meta-approved `booking_reminder` template._
+- [x] **Availability turn-time** — ✅ **DONE & deployed (Cycle 5)**. Replaced the per-30-min-bucket model (a 7pm party "freed" its seats at 7:30 → unlimited oversell of a service) with **turn-time interval occupancy**: a booking holds `[T, T+turn)` (lunch 90m / dinner 120m); availability = `cap − peak concurrent pax`. One shared helper feeds both the pre-check and the in-transaction re-check (TOCTOU-safe). TDD (17 availability tests). Adversarial verify (3 lenses) caught + fixed 2 HIGH data-integrity holes: negative stored pax (clamped) and outside-hours rows bleeding into windows (skipped); re-verified CLEAN. [finding #2]
+- [x] **Smart date resolver** — ✅ **DONE & deployed (Cycle 4)** — audit #2 elevated this to its #1 P0 (silent overbooking + lost lookups). `resolveDate()` (KL tz) at every query/write site + `TODAY:` injected into the prompt. Verified live. [finding #3]
 - [ ] **Admin-editable capacity** — caps hardcoded (lunch 80/dinner 100). [finding #5]
-- [ ] **Tests** — zero automated tests today. Add vitest + critical-path coverage (availability, date, tenant isolation, webhooks).
+- [x] **Tests** — ✅ harness established (vitest) — first 32 tests on the date resolver. Still need coverage for availability / tenant isolation / webhooks.
 - [ ] **Observability** — structured logging + error monitoring (replace stray `console.*`).
 - [ ] **Landing page** — third-party testimonials/case study, FAQ, clarify enterprise pricing, form validation.
+
+## 🔁 Audit #2 (2026-06-03) — score 38 → 44; reprioritized remaining blockers
+- [x] **Date anchor/normalization** — was audit#2's **#1 P0** → ✅ DONE (Cycle 4).
+- [ ] **Monetization loop disconnected** (~1 day) — signup→trial but nothing maps tier→Stripe price, nothing calls `/api/billing/checkout`, no UI links it → self-serve signups can't pay. _Needs Chris's Stripe price IDs (env `TIER_PRICE_ID_*`); I wire the route + CTA._
+- [ ] **Tenant resolution fails OPEN into Songhwa** (~2–3 days) — `resolveTenantId` defaults to "songhwa" for bare vercel.app / localhost / unmatched host; WA webhook routes by host not `phone_number_id`. Make it fail-CLOSED on non-default hosts + route WA by `phone_number_id`. _Needs subdomain/host strategy (ties into P0-2 auth)._
+- [ ] **Firestore indexes only for `songhwa_*`** — a new tenant's composite queries throw FAILED_PRECONDITION (ops; latent until tenant #2).
+- [ ] **Welcome page overclaims** — "Payment confirmed / email on its way" with no payment taken + no mailer → soften copy (quick).
+- [ ] **No PDPA/privacy/terms pages** while recording customer voice + WhatsApp (legal gap) — draftable autonomously.
+- [ ] **Phone "live handoff" never transfers** — says "connecting you" but Vapi `transferCall` isn't wired (needs `STAFF_TRANSFER_PHONE` + Vapi forwarding config).
+- [x] **Welcome page overclaims** — ✅ DONE (Cycle 5). Killed the false "a confirmation email is on its way" (no mailer exists) + the "Payment confirmed" assertion (monetization loop disconnected); copy is now honest in both wired/unwired states, tied to the real WhatsApp onboarding.
+
+## 🔁 Cycle 5 follow-up (surfaced by the turn-time adversarial review)
+- [ ] **Reschedule write is not transaction-wrapped** (MEDIUM) — `lifecycle.ts updateReservation` does `checkAvailability` then a plain `ref.set()` outside any transaction. The customer-reachable reschedule path can race a concurrent booking; the new turn-time model *widens* the race window (any overlapping turn can tip the peak, not just the same 30-min slot). Fix: mirror `reservations/route.ts` — re-fetch the day inside `db.runTransaction` + `isCapacityExceeded(..., input.id)` before `tx.set`. (Pre-existing; deliberately scoped out of the tested turn-time hotfix.)
 
 ## ⚪ P2 — Nice-to-have
 - [ ] Phone ordering (takeaway/pickup) — net-new revenue function.

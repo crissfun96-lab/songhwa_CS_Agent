@@ -1,6 +1,11 @@
 // Availability check — prevents double-booking AND detects idempotent duplicates.
-// Simple capacity model: per-30-min bucket, hard cap at lunch + dinner.
-// Chris can tune caps later based on real table layout.
+//
+// Turn-time capacity model: a booking at T occupies the dining room for its WHOLE
+// table turn [T, T+turn) (lunch 90m, dinner 120m). A slot is available iff the PEAK
+// concurrent pax across the new booking's window stays within the service cap. This
+// replaces the old per-30-min-bucket model, which let a 7pm party "free" its seats at
+// 7:30 and oversell a single service many times over.
+// Chris can tune caps + turn times per his real table layout.
 
 import { getDb } from "../firebase-admin";
 import { tc } from "../tenants/collection";
@@ -11,16 +16,83 @@ import { resolveDate } from "./date-resolver";
 // Capacity rules — tune these per Chris's real floor plan.
 // In a multi-tenant world these would live on the tenant doc.
 const CAPACITY = {
-  lunchCap: 80,       // 11:30–15:00 — max concurrent pax
-  dinnerCap: 100,     // 17:30–22:00
-  bucketMinutes: 30,  // time-slot granularity
+  lunchCap: 80,            // 11:30–15:00 — max concurrent pax
+  dinnerCap: 100,          // 17:30–22:00
+  lunchTurnMinutes: 90,    // how long a lunch table stays occupied
+  dinnerTurnMinutes: 120,  // dinner sits longer
 };
 
-// ── Bucket a time into 30-min slot ────────────────────────────
-function timeToBucket(hhmm: string): string {
+// ── Time helpers ───────────────────────────────────────────────
+function hhmmToMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(":").map(Number);
-  const bucketStart = Math.floor(m / CAPACITY.bucketMinutes) * CAPACITY.bucketMinutes;
-  return `${String(h).padStart(2, "0")}:${String(bucketStart).padStart(2, "0")}`;
+  return h * 60 + m;
+}
+
+// Turn length for the service the slot belongs to. Non-lunch defaults to the
+// (longer) dinner turn — the conservative choice for any out-of-band stored data.
+function turnMinutesForSlot(hhmm: string): number {
+  return isLunchSlot(hhmm) ? CAPACITY.lunchTurnMinutes : CAPACITY.dinnerTurnMinutes;
+}
+
+// A reservation's occupancy interval in minutes-since-midnight.
+interface Occupancy {
+  startMin: number;
+  endMin: number;
+  pax: number;
+}
+
+// Build occupancy intervals from a day's reservations — excludes cancelled, the
+// reservation being moved (on update), and any row whose stored time won't parse
+// (bad data must not silently block new bookings).
+function toOccupancies(
+  dayReservations: Reservation[],
+  excludeReservationId?: string,
+): Occupancy[] {
+  const out: Occupancy[] = [];
+  for (const r of dayReservations) {
+    if (r.status === "cancelled") continue;
+    if (excludeReservationId && r.id === excludeReservationId) continue;
+    let hhmm: string;
+    try {
+      hhmm = normalizeTime(r.time);
+    } catch {
+      continue;
+    }
+    // A stored time outside both services can't occupy a real service window — skip
+    // it so phantom/legacy rows never consume lunch/dinner capacity (else a bogus
+    // 16:00 row would bleed into the 17:30 dinner window via the dinner-turn default).
+    if (!isLunchSlot(hhmm) && !isDinnerSlot(hhmm)) continue;
+    const startMin = hhmmToMinutes(hhmm);
+    out.push({
+      startMin,
+      endMin: startMin + turnMinutesForSlot(hhmm),
+      // Clamp corrupt pax: a negative value is truthy in JS and would SUBTRACT from
+      // the concurrent count, masking a full room; NaN/undefined coerce to 0.
+      pax: Math.max(0, r.pax || 0),
+    });
+  }
+  return out;
+}
+
+// Peak concurrent existing pax across the window [winStart, winEnd).
+// Occupancy only ever RISES at an interval's start, so the peak within the window
+// occurs at winStart (intervals already running) or at some existing start inside it.
+// This is true peak occupancy — NOT a naive sum of everyone who overlaps the window,
+// which would double-count back-to-back seatings that never actually co-occur.
+function peakConcurrentPax(active: Occupancy[], winStart: number, winEnd: number): number {
+  const instants = [winStart];
+  for (const o of active) {
+    if (o.startMin > winStart && o.startMin < winEnd) instants.push(o.startMin);
+  }
+  let peak = 0;
+  for (const t of instants) {
+    let total = 0;
+    for (const o of active) {
+      if (o.startMin <= t && t < o.endMin) total += o.pax;
+    }
+    if (total > peak) peak = total;
+  }
+  return peak;
 }
 
 function normalizeTime(time: string): string {
@@ -64,6 +136,8 @@ function isDinnerSlot(hhmm: string): boolean {
   return hhmm >= "17:30" && hhmm < "22:00";
 }
 
+// `booked` = PEAK concurrent pax during the requested table turn (not a 30-min
+// bucket count); `remaining` = cap − booked (seats addable without breaching the cap).
 export type AvailabilityCheck =
   | {
       available: true;
@@ -84,6 +158,13 @@ export async function checkAvailability(
   excludeReservationId?: string, // when re-checking for an update, exclude the current booking
   tenantId: string = DEFAULT_TENANT_ID,
 ): Promise<AvailabilityCheck> {
+  // Defensive: a non-positive / non-finite party size is invalid input. The HTTP
+  // boundaries (POST Zod, GET route) already validate this, but the reschedule path
+  // does not — guard here so bad pax can never silently pass the capacity math.
+  if (!Number.isFinite(pax) || pax < 1) {
+    return { available: false, reason: "invalid_time", alternatives: [] };
+  }
+
   // Resolve the date FIRST — Firestore stores canonical YYYY-MM-DD keys, so a
   // free-form date ("Saturday April 25") must be normalized before ANY query.
   // Unparseable dates reuse the existing `invalid_time` reason (keeps the union).
@@ -131,8 +212,9 @@ export async function checkAvailability(
     };
   }
 
-  const bucket = timeToBucket(hhmm);
   const cap = isLunch ? CAPACITY.lunchCap : CAPACITY.dinnerCap;
+  const winStart = hhmmToMinutes(hhmm);
+  const winEnd = winStart + turnMinutesForSlot(hhmm);
 
   // Fetch all reservations for this date
   const snapshot = await getDb()
@@ -142,20 +224,11 @@ export async function checkAvailability(
 
   const dayReservations = snapshot.docs.map((d) => d.data() as Reservation);
 
-  // Sum pax in matching bucket — EXCLUDE cancelled + exclude self (on update)
-  const bookedInBucket = dayReservations
-    .filter((r) => {
-      if (r.status === "cancelled") return false;
-      if (excludeReservationId && r.id === excludeReservationId) return false;
-      try {
-        return timeToBucket(normalizeTime(r.time)) === bucket;
-      } catch {
-        return false;
-      }
-    })
-    .reduce((sum, r) => sum + (r.pax || 0), 0);
-
-  const remaining = cap - bookedInBucket;
+  // Peak concurrent pax during the new booking's table turn — EXCLUDE cancelled +
+  // exclude self (on update). Uses the SAME helpers as the in-transaction re-check.
+  const active = toOccupancies(dayReservations, excludeReservationId);
+  const bookedPeak = peakConcurrentPax(active, winStart, winEnd);
+  const remaining = cap - bookedPeak;
 
   if (remaining < pax) {
     // Suggest nearby slots
@@ -163,14 +236,14 @@ export async function checkAvailability(
     return {
       available: false,
       reason: "fully_booked",
-      capacityAtSlot: { booked: bookedInBucket, remaining, total: cap },
+      capacityAtSlot: { booked: bookedPeak, remaining, total: cap },
       alternatives,
     };
   }
 
   return {
     available: true,
-    capacityAtSlot: { booked: bookedInBucket, remaining, total: cap },
+    capacityAtSlot: { booked: bookedPeak, remaining, total: cap },
   };
 }
 
@@ -189,13 +262,15 @@ async function suggestAlternatives(
   const suggestions: Array<{ date: string; time: string; note: string }> = [];
 
   for (const candidate of candidates) {
-    if (candidate === timeToBucket(hhmm)) continue;
+    if (candidate === hhmm) continue; // both are normalized "HH:MM"
     const check = await checkAvailability(date, candidate, pax, undefined, tenantId);
     if (check.available) {
       suggestions.push({
         date,
         time: formatDisplay(candidate),
-        note: `${check.capacityAtSlot.remaining} seats open`,
+        // remaining is cap − peak BEFORE this party; subtract pax so the note reflects
+        // what's left AFTER seating them (remaining ≥ pax here since check.available).
+        note: `${check.capacityAtSlot.remaining - pax} seats open`,
       });
     }
     if (suggestions.length >= 3) break;
@@ -213,14 +288,16 @@ function formatDisplay(hhmm: string): string {
 
 // ── Capacity check for use INSIDE a Firestore transaction ────
 // Takes already-fetched reservation data + returns whether adding `pax` at `time`
-// would exceed capacity. Reuses the SAME bucket logic as checkAvailability to
-// guarantee the in-transaction re-check matches the pre-transaction check.
+// would exceed capacity. Reuses the SAME turn-time peak-occupancy logic as
+// checkAvailability to guarantee the in-transaction re-check matches the pre-check.
 export function isCapacityExceeded(
   dayReservations: Reservation[],
   requestedTime: string,
   pax: number,
   excludeReservationId?: string,
 ): boolean {
+  if (!Number.isFinite(pax) || pax < 1) return true; // invalid party size → exceeded (defensive)
+
   let hhmm: string;
   try {
     hhmm = normalizeTime(requestedTime);
@@ -232,22 +309,16 @@ export function isCapacityExceeded(
   const isDinner = isDinnerSlot(hhmm);
   if (!isLunch && !isDinner) return true; // outside hours
 
-  const bucket = timeToBucket(hhmm);
   const cap = isLunch ? CAPACITY.lunchCap : CAPACITY.dinnerCap;
+  const winStart = hhmmToMinutes(hhmm);
+  const winEnd = winStart + turnMinutesForSlot(hhmm);
 
-  const bookedInBucket = dayReservations
-    .filter((r) => {
-      if (r.status === "cancelled") return false;
-      if (excludeReservationId && r.id === excludeReservationId) return false;
-      try {
-        return timeToBucket(normalizeTime(r.time)) === bucket;
-      } catch {
-        return false;
-      }
-    })
-    .reduce((sum, r) => sum + (r.pax || 0), 0);
+  // Same turn-time peak-occupancy model as checkAvailability — keeping the two in
+  // lockstep is what closes the TOCTOU window between pre-check and committed write.
+  const active = toOccupancies(dayReservations, excludeReservationId);
+  const bookedPeak = peakConcurrentPax(active, winStart, winEnd);
 
-  return bookedInBucket + pax > cap;
+  return bookedPeak + pax > cap;
 }
 
 // ── Idempotency: detect duplicate booking attempts ────────────
