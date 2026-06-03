@@ -4,6 +4,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod/v4";
 import { createLead } from "@/lib/leads/firestore";
+import { log } from "@/lib/logger";
 import { sendLeadNotification } from "@/lib/telegram";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { emitAsync } from "@/lib/metering/firestore";
@@ -52,7 +53,7 @@ export async function POST(request: Request) {
     });
 
     sendLeadNotification(lead).catch((err) =>
-      console.error("[Telegram] lead notification failed:", err),
+      log.error({ event: "lead_notification_failed", err }),
     );
 
     // Platform-level metering — track inbound leads for sales funnel analytics
@@ -70,7 +71,7 @@ export async function POST(request: Request) {
       );
     }
     const msg = error instanceof Error ? error.message : String(error);
-    console.error("[leads] failed:", msg);
+    log.error({ event: "lead_post_failed", err: error });
     return NextResponse.json(
       { success: false, error: msg.slice(0, 200) },
       { status: 500 },

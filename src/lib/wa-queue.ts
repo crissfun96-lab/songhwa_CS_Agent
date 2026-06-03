@@ -8,6 +8,7 @@
 //
 // This decouples the serverless Vercel runtime from the long-running WA session.
 
+import { log } from "@/lib/logger";
 import { getDb } from "./firebase-admin";
 import { tc } from "./tenants/collection";
 import { getTenant } from "./tenants/firestore";
@@ -50,7 +51,7 @@ async function enqueue(
   // runs don't spam the real WA group. Override with WA_FORCE=1 when
   // intentionally testing the WA channel itself.
   if (process.env.NODE_ENV !== "production" && process.env.WA_FORCE !== "1") {
-    console.log(`[wa-queue] SKIPPED in dev (${type}): set WA_FORCE=1 to override`);
+    log.info({ event: "wa_queue_skipped_dev", type });
     return;
   }
 

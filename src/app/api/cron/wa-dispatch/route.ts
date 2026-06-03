@@ -10,6 +10,7 @@ import { NextResponse } from "next/server";
 import { processInboundBatch } from "@/lib/whatsapp/dispatcher";
 import { listActiveTenants } from "@/lib/tenants/firestore";
 import { verifyBearer } from "@/lib/auth-secret";
+import { log } from "@/lib/logger";
 
 interface TenantBatchResult {
   tenantId: string;
@@ -40,7 +41,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: true, total, perTenant });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error("[wa-dispatch] error:", message);
+    log.error({ event: "wa_dispatch_error", err: error });
     return NextResponse.json(
       { success: false, error: message.slice(0, 300) },
       { status: 500 },

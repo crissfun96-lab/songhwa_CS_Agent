@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { lookupCustomerByPhone, lookupCustomerByName } from "@/lib/customers";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { resolveTenantId } from "@/lib/tenants/resolver";
+import { log } from "@/lib/logger";
 
 // Rate-limited customer lookup.
 // PREFERRED: ?phone=01154302561 — phone is the canonical identifier.
@@ -85,7 +86,7 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    console.error("[Customers] GET error:", error);
+    log.error({ event: "customer_lookup_error", err: error });
     return NextResponse.json(
       { success: false, error: "Failed to lookup customer" },
       { status: 500 },

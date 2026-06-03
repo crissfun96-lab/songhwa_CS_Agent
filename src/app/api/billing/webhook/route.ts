@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { verifyAndParseWebhook } from "@/lib/billing/stripe";
 import { updateTenant } from "@/lib/tenants/firestore";
 import { sendToStaffRaw } from "@/lib/telegram";
+import { log } from "@/lib/logger";
 
 export async function POST(request: Request) {
   const rawBody = await request.text();
@@ -56,7 +57,7 @@ export async function POST(request: Request) {
         break;
     }
   } catch (err) {
-    console.error("[stripe webhook] handler error:", err);
+    log.error({ event: "stripe_webhook_handler_error", err, tenantId });
     // Return 500 so Stripe retries (up to 72h). A failed updateTenant means
     // subscription state did NOT propagate to Firestore — silently swallowing
     // this leaves a paid customer in the wrong state forever.

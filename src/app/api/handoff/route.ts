@@ -9,6 +9,7 @@ import { sendHandoffNotification } from "@/lib/telegram";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { emitAsync } from "@/lib/metering/firestore";
 import { resolveTenantId } from "@/lib/tenants/resolver";
+import { log } from "@/lib/logger";
 
 function sanitize(text: string): string {
   return text.replace(/[\r\n]+/g, " ").replace(/[*~`]/g, "").slice(0, 500).trim();
@@ -57,7 +58,7 @@ export async function POST(request: Request) {
 
     // Always alert staff — urgency-aware formatting
     sendHandoffNotification(handoff).catch((err) =>
-      console.error("[Telegram] handoff notification failed:", err),
+      log.error({ event: "handoff_notification_failed", err, tenantId }),
     );
 
     emitAsync("handoff", {
@@ -102,7 +103,7 @@ export async function POST(request: Request) {
       );
     }
     const message = error instanceof Error ? error.message : String(error);
-    console.error("[handoff] failed:", message);
+    log.error({ event: "handoff_post_error", err: error });
     return NextResponse.json(
       { success: false, error: message.slice(0, 200) },
       { status: 500 },

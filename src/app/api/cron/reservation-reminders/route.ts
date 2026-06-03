@@ -15,6 +15,7 @@ import { tc } from "@/lib/tenants/collection";
 import { getKlNow } from "@/lib/menu/firestore";
 import { sendBookingReminder, isMetaWaConfigured } from "@/lib/whatsapp/meta-client";
 import { verifyBearer } from "@/lib/auth-secret";
+import { log } from "@/lib/logger";
 import type { Reservation } from "@/lib/types";
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
@@ -73,15 +74,17 @@ export async function GET(request: Request) {
             sent += 1;
           } catch (err) {
             tenantResult.failed += 1;
-            console.error(
-              `[reservation-reminders] send failed (tenant=${tenant.id}, res=${reservation.id}):`,
+            log.error({
+              event: "reservation_reminder_send_failed",
+              tenantId: tenant.id,
+              reservationId: reservation.id,
               err,
-            );
+            });
           }
         }
       } catch (err) {
         // A whole-tenant query failure shouldn't sink the other tenants.
-        console.error(`[reservation-reminders] tenant sweep failed (tenant=${tenant.id}):`, err);
+        log.error({ event: "reservation_reminder_tenant_sweep_failed", tenantId: tenant.id, err });
       }
 
       perTenant.push(tenantResult);
@@ -96,7 +99,7 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error("[reservation-reminders] error:", message);
+    log.error({ event: "reservation_reminder_cron_error", err: error });
     return NextResponse.json(
       { success: false, error: message.slice(0, 300) },
       { status: 500 },

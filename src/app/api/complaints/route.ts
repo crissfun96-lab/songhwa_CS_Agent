@@ -4,6 +4,7 @@ import { createComplaint } from "@/lib/complaints/firestore";
 import { sendComplaintNotification } from "@/lib/telegram";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { resolveTenantId } from "@/lib/tenants/resolver";
+import { log } from "@/lib/logger";
 
 function sanitize(text: string): string {
   return text.replace(/[\r\n]+/g, " ").replace(/[*_~`]/g, "").slice(0, 2000).trim();
@@ -56,7 +57,7 @@ export async function POST(request: Request) {
 
     // Fire-and-forget Telegram alert (never blocks response)
     sendComplaintNotification(complaint).catch((err) =>
-      console.error("[Telegram] complaint notification failed:", err),
+      log.error({ event: "telegram_complaint_notification_failed", err }),
     );
 
     return NextResponse.json({
@@ -79,7 +80,7 @@ export async function POST(request: Request) {
       );
     }
     const message = error instanceof Error ? error.message : String(error);
-    console.error("[complaints] failed:", message);
+    log.error({ event: "complaint_post_error", err: error });
     return NextResponse.json(
       { success: false, error: message.slice(0, 200) },
       { status: 500 },

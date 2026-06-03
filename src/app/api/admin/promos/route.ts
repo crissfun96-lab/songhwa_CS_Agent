@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod/v4";
 import { getDb } from "@/lib/firebase-admin";
+import { log } from "@/lib/logger";
 import { menuCollections } from "@/lib/menu/firestore";
 import { buildCompactSummary } from "@/lib/menu/prompt-injector";
 import { resolveTenantId } from "@/lib/tenants/resolver";
@@ -8,7 +9,7 @@ import type { Promo } from "@/lib/menu/types";
 
 function refreshCache(tenantId: string) {
   buildCompactSummary(tenantId).catch((err) =>
-    console.error("[admin] cache rebuild failed:", err),
+    log.error({ event: "admin_cache_rebuild_failed", err, tenantId }),
   );
 }
 

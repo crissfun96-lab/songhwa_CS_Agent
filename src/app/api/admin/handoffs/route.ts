@@ -3,6 +3,7 @@
 
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/firebase-admin";
+import { log } from "@/lib/logger";
 import type { HandoffRequest } from "@/lib/handoff/types";
 
 const COLLECTION = "songhwa_handoffs";
@@ -26,7 +27,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: true, data: items, count: items.length });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error("[admin/handoffs] error:", msg);
+    log.error({ event: "admin_handoffs_error", err: error });
     return NextResponse.json({ success: false, error: msg.slice(0, 200) }, { status: 500 });
   }
 }

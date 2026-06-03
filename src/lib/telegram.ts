@@ -4,6 +4,7 @@ import type { CallbackRequest } from "./callbacks/types";
 import type { HandoffRequest } from "./handoff/types";
 import { HANDOFF_ETA_MINUTES } from "./handoff/types";
 import type { Lead } from "./leads/types";
+import { log } from "@/lib/logger";
 
 const TELEGRAM_API = (token: string) => `https://api.telegram.org/bot${token}/sendMessage`;
 
@@ -15,7 +16,7 @@ async function sendToStaff(text: string): Promise<void> {
   const chatId = process.env.TELEGRAM_STAFF_CHAT_ID;
 
   if (!token || !chatId) {
-    console.warn("[Telegram] Missing TELEGRAM_BOT_TOKEN or TELEGRAM_STAFF_CHAT_ID");
+    log.warn({ event: "telegram_config_missing" });
     return;
   }
 
@@ -35,20 +36,25 @@ async function sendToStaff(text: string): Promise<void> {
       // (no point retrying), 5xx = retry
       if (res.status >= 400 && res.status < 500 && res.status !== 429) {
         const err = await res.text();
-        console.error(`[Telegram] Permanent ${res.status} (no retry):`, err.slice(0, 200));
+        log.error({ event: "telegram_permanent_error", status: res.status, err: err.slice(0, 200) });
         return;
       }
 
       const errBody = await res.text().catch(() => "");
-      console.warn(
-        `[Telegram] Attempt ${attempt + 1}/${backoffsMs.length} failed (${res.status}):`,
-        errBody.slice(0, 150),
-      );
+      log.warn({
+        event: "telegram_attempt_failed",
+        attempt: attempt + 1,
+        maxAttempts: backoffsMs.length,
+        status: res.status,
+        err: errBody.slice(0, 150),
+      });
     } catch (error) {
-      console.warn(
-        `[Telegram] Attempt ${attempt + 1}/${backoffsMs.length} network error:`,
-        error instanceof Error ? error.message : String(error),
-      );
+      log.warn({
+        event: "telegram_attempt_network_error",
+        attempt: attempt + 1,
+        maxAttempts: backoffsMs.length,
+        err: error,
+      });
     }
 
     if (attempt < backoffsMs.length - 1) {
@@ -56,7 +62,7 @@ async function sendToStaff(text: string): Promise<void> {
     }
   }
 
-  console.error("[Telegram] All retry attempts exhausted — staff alert dropped");
+  log.error({ event: "telegram_alert_dropped" });
 }
 
 // ── Notifications ─────────────────────────────────────────────

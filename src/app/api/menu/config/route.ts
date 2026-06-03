@@ -5,6 +5,7 @@ import {
 } from "@/lib/menu/prompt-injector";
 import { resolveTenantId } from "@/lib/tenants/resolver";
 import { tenantServiceState } from "@/lib/billing/lifecycle";
+import { log } from "@/lib/logger";
 
 // Called by the client on session start.
 // Returns: { systemPrompt, tools } — everything the agent needs to configure itself.
@@ -36,7 +37,7 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error("[menu/config] failed:", message);
+    log.error({ event: "menu_config_failed", err: error });
     return NextResponse.json(
       { success: false, error: message.slice(0, 200) },
       { status: 500 },

@@ -10,6 +10,7 @@
 // a paying/active tenant because of an infra hiccup. The active/pro default
 // tenant (Songhwa) must ALWAYS be serviceable.
 
+import { log } from "@/lib/logger";
 import { getTenant, effectiveLimits } from "../tenants/firestore";
 import { getLiveMonthUsage } from "../metering/firestore";
 import type { MeteringEventType } from "../metering/types";
@@ -75,7 +76,7 @@ export async function tenantServiceState(
     return { serviceable: true };
   } catch (err) {
     // FAIL-OPEN: never let billing logic take down service.
-    console.error("[billing/lifecycle] tenantServiceState failed:", err);
+    log.error({ event: "billing_lifecycle_service_state_failed", err, tenantId });
     return { serviceable: true };
   }
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { log } from "@/lib/logger";
 
 /**
  * POST /api/songhwa-token
@@ -51,12 +52,13 @@ export async function POST(request: Request) {
     }
     // Log but fall through to apiKey path
     const errorBody = await response.text().catch(() => "");
-    console.warn(
-      `[songhwa-token] Ephemeral unavailable (${response.status}); using API key fallback:`,
-      errorBody.slice(0, 150),
-    );
+    log.warn({
+      event: "songhwa_token_ephemeral_unavailable",
+      status: response.status,
+      errorBody: errorBody.slice(0, 150),
+    });
   } catch (err) {
-    console.warn("[songhwa-token] Ephemeral network error; falling back:", err);
+    log.warn({ event: "songhwa_token_ephemeral_network_error", err });
   }
 
   // ── Attempt 2: API key fallback (only if STRICT_TOKEN_MODE not set) ──
@@ -86,7 +88,7 @@ export async function POST(request: Request) {
     (refererOrigin !== null && ALLOWED_ORIGINS.has(refererOrigin));
 
   if (!isOriginAllowed) {
-    console.warn("[songhwa-token] Blocked fallback — unknown origin:", origin, referer);
+    log.warn({ event: "songhwa_token_blocked_unknown_origin", origin, referer });
     return NextResponse.json(
       { error: "Unable to issue session token from this origin." },
       { status: 403 },

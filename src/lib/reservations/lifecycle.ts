@@ -1,6 +1,7 @@
 // Reservation lifecycle: find, update, cancel. Used by BOTH agent and admin.
 
 import { getDb } from "../firebase-admin";
+import { log } from "@/lib/logger";
 import { tc } from "../tenants/collection";
 import { DEFAULT_TENANT_ID } from "../tenants/types";
 import type {
@@ -243,9 +244,12 @@ export async function updateReservation(input: UpdateInput): Promise<UpdateResul
   }
 
   // Log for observability
-  console.log(
-    `[lifecycle] updated ${input.id}: ${Object.keys(changes).join(", ")} (was ${reservationKey})`,
-  );
+  log.info({
+    event: "reservation_updated",
+    reservationId: input.id,
+    changedFields: Object.keys(changes),
+    previousSlot: reservationKey,
+  });
 
   return { success: true, reservation: updated, modification };
 }
@@ -302,7 +306,11 @@ export async function cancelReservation(input: CancelInput): Promise<CancelResul
   };
 
   await ref.set(updated);
-  console.log(`[lifecycle] cancelled ${input.id} (was ${current.date} ${current.time})`);
+  log.info({
+    event: "reservation_cancelled",
+    reservationId: input.id,
+    previousSlot: `${current.date} ${current.time}`,
+  });
   return { success: true, reservation: updated };
 }
 

@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { FieldValue } from "firebase-admin/firestore";
+import { log } from "@/lib/logger";
 import { getDb } from "../firebase-admin";
 import { DEFAULT_TENANT_ID } from "../tenants/types";
 import type {
@@ -73,7 +74,7 @@ export async function emit(
       );
   } catch (err) {
     // Metering can never break the actual feature
-    console.error("[metering] emit failed:", err);
+    log.error({ event: "metering_emit_failed", err, tenantId: tid });
   }
 }
 
@@ -82,7 +83,7 @@ export function emitAsync(
   type: MeteringEventType,
   opts: Parameters<typeof emit>[1] = {},
 ): void {
-  emit(type, opts).catch((err) => console.error("[metering] async emit failed:", err));
+  emit(type, opts).catch((err) => log.error({ event: "metering_async_emit_failed", err }));
 }
 
 export async function rollupDay(ymd: string): Promise<{ tenantCount: number; eventCount: number }> {

@@ -6,12 +6,13 @@
 // serviceability gate (src/lib/billing/lifecycle.ts) stops serving its
 // inbound traffic.
 //
-// NOTE: there is no email provider in this repo. We `console.warn` that a
+// NOTE: there is no email provider in this repo. We `log.warn` that a
 // Stripe checkout link should be emailed to the owner — wiring an actual
 // mailer is a follow-up task, intentionally out of scope here.
 
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/firebase-admin";
+import { log } from "@/lib/logger";
 import { updateTenant } from "@/lib/tenants/firestore";
 import { verifyBearer } from "@/lib/auth-secret";
 import type { Tenant } from "@/lib/tenants/types";
@@ -48,15 +49,17 @@ export async function GET(request: Request) {
 
       // Follow-up: no mailer in this repo yet. A Stripe checkout link should be
       // emailed to tenant.ownerEmail so they can reactivate by subscribing.
-      console.warn(
-        `[billing-lifecycle] suspended trial '${tenant.id}' — TODO email checkout link to ${tenant.ownerEmail}`,
-      );
+      log.warn({
+        event: "billing_lifecycle_trial_suspended",
+        tenantId: tenant.id,
+        ownerEmail: tenant.ownerEmail,
+      });
     }
 
     return NextResponse.json({ suspended: suspendedIds.length, ids: suspendedIds });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error("[billing-lifecycle] error:", message);
+    log.error({ event: "billing_lifecycle_error", err: error });
     return NextResponse.json(
       { success: false, error: message.slice(0, 300) },
       { status: 500 },

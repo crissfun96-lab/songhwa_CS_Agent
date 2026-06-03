@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod/v4";
+import { log } from "@/lib/logger";
 import { upsertDraft } from "@/lib/reservations/intent";
 import { resolveTenantId } from "@/lib/tenants/resolver";
 import { resolveDate } from "@/lib/reservations/date-resolver";
@@ -62,7 +63,7 @@ export async function POST(request: Request) {
       );
     }
     const message = error instanceof Error ? error.message : String(error);
-    console.error("[draft] failed:", message);
+    log.error({ event: "draft_post_error", err: error });
     return NextResponse.json(
       { success: false, error: message.slice(0, 200) },
       { status: 500 },

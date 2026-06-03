@@ -5,6 +5,7 @@ import {
   hoursToText,
 } from "@/lib/business/firestore";
 import { resolveTenantId } from "@/lib/tenants/resolver";
+import { log } from "@/lib/logger";
 import type { BusinessInfo } from "@/lib/business/types";
 
 // Tool endpoint for get_business_status — returns right-now open/closed info.
@@ -70,7 +71,7 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error("[business/status] failed:", message);
+    log.error({ event: "business_status_error", err: error });
     return NextResponse.json(
       { success: false, error: message.slice(0, 200) },
       { status: 500 },

@@ -11,6 +11,7 @@
 
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/firebase-admin";
+import { log } from "@/lib/logger";
 import { tc } from "@/lib/tenants/collection";
 import { resolveTenantId } from "@/lib/tenants/resolver";
 import { verifyMetaSignature } from "@/lib/whatsapp/verify-signature";
@@ -116,7 +117,7 @@ export async function POST(request: Request) {
             });
           hasNewMessage = true;
         } catch (err) {
-          console.error("[WA webhook] persist failed:", err);
+          log.error({ event: "wa_webhook_persist_failed", docId, tenantId, err });
         }
       }
 
@@ -129,14 +130,18 @@ export async function POST(request: Request) {
         fetch(`${baseUrl}/api/cron/wa-dispatch`, {
           method: "POST",
           headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
-        }).catch((err) => console.error("[WA webhook] dispatch trigger failed:", err));
+        }).catch((err) => log.error({ event: "wa_webhook_dispatch_trigger_failed", tenantId, err }));
       }
 
       // Delivery status updates → log only for now
       for (const status of value.statuses ?? []) {
-        console.log(
-          `[WA webhook] status: ${status.id} → ${status.status} for ${status.recipient_id}`,
-        );
+        log.info({
+          event: "wa_webhook_status_update",
+          statusId: status.id,
+          status: status.status,
+          recipientPhone: status.recipient_id, // PII: masked by the logger (key matches /phone/)
+          tenantId,
+        });
       }
     }
   }

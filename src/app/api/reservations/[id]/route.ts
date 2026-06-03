@@ -12,6 +12,7 @@ import { enqueueReservationUpdate, enqueueReservationCancel } from "@/lib/wa-que
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { resolveTenantId } from "@/lib/tenants/resolver";
 import { tc } from "@/lib/tenants/collection";
+import { log } from "@/lib/logger";
 import type { Reservation } from "@/lib/types";
 
 // Ownership verification — PATCH/DELETE require proof the caller owns this reservation.
@@ -121,10 +122,10 @@ export async function PATCH(
     }
 
     sendReservationUpdateNotification(result.reservation, result.modification).catch((err) =>
-      console.error("[Telegram] update notification failed:", err),
+      log.error({ event: "telegram_update_notification_failed", err, tenantId }),
     );
     enqueueReservationUpdate(result.reservation, result.modification, { tenantId }).catch((err) =>
-      console.error("[WA queue] update enqueue failed:", err),
+      log.error({ event: "wa_queue_update_enqueue_failed", err, tenantId }),
     );
 
     return NextResponse.json({
@@ -140,7 +141,7 @@ export async function PATCH(
       );
     }
     const msg = error instanceof Error ? error.message : String(error);
-    console.error("[reservations PATCH] failed:", msg);
+    log.error({ event: "reservation_patch_failed", err: error });
     return NextResponse.json({ success: false, error: msg.slice(0, 200) }, { status: 500 });
   }
 }
@@ -194,10 +195,10 @@ export async function DELETE(
     }
 
     sendReservationCancelNotification(result.reservation).catch((err) =>
-      console.error("[Telegram] cancel notification failed:", err),
+      log.error({ event: "telegram_cancel_notification_failed", err, tenantId }),
     );
     enqueueReservationCancel(result.reservation, { tenantId }).catch((err) =>
-      console.error("[WA queue] cancel enqueue failed:", err),
+      log.error({ event: "wa_queue_cancel_enqueue_failed", err, tenantId }),
     );
 
     return NextResponse.json({
@@ -207,7 +208,7 @@ export async function DELETE(
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error("[reservations DELETE] failed:", msg);
+    log.error({ event: "reservation_delete_failed", err: error });
     return NextResponse.json({ success: false, error: msg.slice(0, 200) }, { status: 500 });
   }
 }

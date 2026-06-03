@@ -5,6 +5,7 @@ import { URGENCY_ETA_MINUTES } from "@/lib/callbacks/types";
 import { sendCallbackNotification } from "@/lib/telegram";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { resolveTenantId } from "@/lib/tenants/resolver";
+import { log } from "@/lib/logger";
 
 function sanitize(text: string): string {
   return text.replace(/[\r\n]+/g, " ").replace(/[*_~`]/g, "").slice(0, 500).trim();
@@ -45,7 +46,7 @@ export async function POST(request: Request) {
     });
 
     sendCallbackNotification(callback).catch((err) =>
-      console.error("[Telegram] callback notification failed:", err),
+      log.error({ event: "callback_notification_failed", err }),
     );
 
     return NextResponse.json({
@@ -64,7 +65,7 @@ export async function POST(request: Request) {
       );
     }
     const message = error instanceof Error ? error.message : String(error);
-    console.error("[callbacks] failed:", message);
+    log.error({ event: "callback_post_failed", err: error });
     return NextResponse.json(
       { success: false, error: message.slice(0, 200) },
       { status: 500 },

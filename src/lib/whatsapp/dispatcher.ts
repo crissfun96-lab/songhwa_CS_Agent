@@ -14,6 +14,7 @@
 // transaction before processing — this serializes the two paths so no message
 // is ever double-replied.
 
+import { log } from "@/lib/logger";
 import { getDb } from "../firebase-admin";
 import { loadHistory, appendMessage, type ConvMessage } from "./conversation";
 import { callGemini, toGeminiContents } from "./gemini-text";
@@ -377,10 +378,12 @@ export async function processInboundBatch(
       });
     } catch (err) {
       // Transaction contention/abort — treat as "not claimed", let the owner run it.
-      console.error(
-        `[wa-dispatcher] claim txn for msg ${doc.id} aborted:`,
-        err instanceof Error ? err.message : String(err),
-      );
+      log.error({
+        event: "wa_dispatch_claim_txn_aborted",
+        msgId: doc.id,
+        err,
+        tenantId,
+      });
       continue;
     }
 
@@ -402,7 +405,12 @@ export async function processInboundBatch(
     } catch (err) {
       failed++;
       const message = err instanceof Error ? err.message : String(err);
-      console.error(`[wa-dispatcher] msg ${doc.id} failed:`, message);
+      log.error({
+        event: "wa_dispatch_msg_failed",
+        msgId: doc.id,
+        err,
+        tenantId,
+      });
       await doc.ref.update({
         processed: true,
         processing: false,

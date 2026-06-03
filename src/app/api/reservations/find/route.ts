@@ -3,6 +3,7 @@ import { findReservationsByPhone } from "@/lib/reservations/lifecycle";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { resolveTenantId } from "@/lib/tenants/resolver";
 import { resolveDate } from "@/lib/reservations/date-resolver";
+import { log } from "@/lib/logger";
 
 // GET /api/reservations/find?phone=01154302561&date=2026-04-25&activeOnly=true
 // Rate-limited: 20 lookups/hour per IP. Each lookup is by an exact phone — attackers
@@ -74,7 +75,7 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error("[reservations/find] failed:", msg);
+    log.error({ event: "reservation_find_failed", err: error });
     return NextResponse.json(
       { success: false, error: msg.slice(0, 200) },
       { status: 500 },

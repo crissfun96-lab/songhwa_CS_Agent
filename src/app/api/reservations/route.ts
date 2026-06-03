@@ -19,6 +19,7 @@ import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { emitAsync } from "@/lib/metering/firestore";
 import { resolveTenantId } from "@/lib/tenants/resolver";
 import { tc } from "@/lib/tenants/collection";
+import { log } from "@/lib/logger";
 import type { Reservation } from "@/lib/types";
 
 // SECURITY (Bug H4 fix): block CSRF — cross-origin reservation POSTs from
@@ -273,22 +274,22 @@ export async function POST(request: Request): Promise<NextResponse<CreateReserva
 
     if (parsed.sessionId) {
       markDraftConverted(parsed.sessionId, reservation.id, tenantId).catch((err) =>
-        console.error("[Reservations] draft conversion failed:", err),
+        log.error({ event: "reservation_draft_conversion_failed", tenantId, err }),
       );
     }
 
     sendStaffNotification(reservation).catch((err) =>
-      console.error("[Telegram] Notification failed:", err),
+      log.error({ event: "telegram_notification_failed", tenantId, err }),
     );
 
     // Customer-facing WhatsApp confirmation (template-first w/ text fallback,
     // self-env-guarded). Fire-and-forget — must NEVER block or fail the booking.
     sendBookingConfirmation(reservation).catch((err) =>
-      console.error("[reservations] customer confirmation failed:", err),
+      log.error({ event: "reservation_customer_confirmation_failed", tenantId, err }),
     );
 
     enqueueNewReservation(reservation, { tenantId }).catch((err) =>
-      console.error("[WA queue] enqueue failed:", err),
+      log.error({ event: "wa_queue_enqueue_failed", tenantId, err }),
     );
 
     // Metering — billable event for tier enforcement + analytics
@@ -332,7 +333,7 @@ export async function POST(request: Request): Promise<NextResponse<CreateReserva
       );
     }
     const message = error instanceof Error ? error.message : String(error);
-    console.error("[Reservations] POST error:", message);
+    log.error({ event: "reservation_post_error", err: error });
     return NextResponse.json(
       { success: false, error: message.slice(0, 200), code: "server_error" },
       { status: 500 },

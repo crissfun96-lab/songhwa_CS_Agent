@@ -3,6 +3,7 @@ import { fetchPlaceDetails, findPlaceId } from "@/lib/business/gbp-sync";
 import { saveBusinessInfo } from "@/lib/business/firestore";
 import { resolveTenantId } from "@/lib/tenants/resolver";
 import { verifyBearer } from "@/lib/auth-secret";
+import { log } from "@/lib/logger";
 
 // POST /api/business/sync — pulls fresh GBP data, saves to Firestore.
 // Vercel Cron hits this daily (business hours rarely change).
@@ -68,7 +69,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error("[business/sync] failed:", message);
+    log.error({ event: "business_sync_failed", err: error });
     return NextResponse.json(
       { success: false, error: message.slice(0, 500) },
       { status: 500 },

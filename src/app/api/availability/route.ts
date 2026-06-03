@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { checkAvailability } from "@/lib/reservations/availability";
 import { resolveTenantId } from "@/lib/tenants/resolver";
+import { log } from "@/lib/logger";
 
 // GET /api/availability?date=2026-04-25&time=7:00PM&pax=4
 export async function GET(request: Request) {
@@ -29,7 +30,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: true, data: result });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error("[availability] failed:", message);
+    log.error({ event: "availability_check_failed", err: error });
     return NextResponse.json(
       { success: false, error: message.slice(0, 200) },
       { status: 500 },

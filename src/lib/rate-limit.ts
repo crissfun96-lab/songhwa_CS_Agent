@@ -6,6 +6,7 @@
 //   if (!allowed) return 429;
 
 import { getDb } from "./firebase-admin";
+import { log } from "@/lib/logger";
 
 export interface RateLimitResult {
   allowed: boolean;
@@ -55,7 +56,7 @@ export async function rateLimit(
     });
   } catch (err) {
     // Fail-open on Firestore errors — don't break customer experience over rate limits
-    console.error("[rate-limit] error, allowing:", err);
+    log.error({ event: "rate_limit_error_failopen", err });
     return { allowed: true, remaining: opts.limit, resetInSeconds: opts.windowSeconds };
   }
 }

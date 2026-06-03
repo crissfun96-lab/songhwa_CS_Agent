@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDishById } from "@/lib/menu/firestore";
 import { resolveTenantId } from "@/lib/tenants/resolver";
+import { log } from "@/lib/logger";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -68,7 +69,7 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error("[menu/dish] failed:", message);
+    log.error({ event: "menu_dish_lookup_failed", err: error });
     return NextResponse.json(
       { success: false, error: message.slice(0, 200) },
       { status: 500 },

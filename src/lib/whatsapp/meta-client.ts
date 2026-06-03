@@ -3,6 +3,7 @@
 // inbound conversation handling). Staff group notifications stay on
 // Baileys (services/wa-notifier/) because Meta Cloud API doesn't send to groups.
 
+import { log } from "@/lib/logger";
 import type { Reservation } from "@/lib/types";
 
 const META_API_BASE = "https://graph.facebook.com/v22.0";
@@ -118,7 +119,7 @@ export async function sendTemplate(
 export async function sendBookingConfirmation(r: Reservation): Promise<void> {
   // Env-guard: no Meta WA config → no-op (never throw, never block the booking).
   if (!isMetaWaConfigured()) {
-    console.warn("[Meta WA] confirmation skipped — META_WHATSAPP_* not configured");
+    log.warn({ event: "meta_wa_confirmation_skipped_unconfigured" });
     return;
   }
 
@@ -153,13 +154,13 @@ export async function sendBookingConfirmation(r: Reservation): Promise<void> {
       },
     ]);
   } catch (err) {
-    console.warn("[Meta WA] confirmation template fallback to text:", err);
+    log.warn({ event: "meta_wa_confirmation_template_fallback_to_text", err });
     try {
       await sendText(r.phone, body);
     } catch (fallbackErr) {
       // Both template + text failed (Meta down / outside 24h window). Notification
       // only — never throw so callers can await this directly without a .catch().
-      console.error("[Meta WA] confirmation text fallback also failed:", fallbackErr);
+      log.error({ event: "meta_wa_confirmation_text_fallback_failed", err: fallbackErr });
     }
   }
 }
@@ -167,7 +168,7 @@ export async function sendBookingConfirmation(r: Reservation): Promise<void> {
 export async function sendBookingReminder(r: Reservation): Promise<void> {
   // Env-guard: no Meta WA config → no-op (never throw).
   if (!isMetaWaConfigured()) {
-    console.warn("[Meta WA] reminder skipped — META_WHATSAPP_* not configured");
+    log.warn({ event: "meta_wa_reminder_skipped_unconfigured" });
     return;
   }
 
@@ -185,7 +186,7 @@ export async function sendBookingReminder(r: Reservation): Promise<void> {
       },
     ]);
   } catch (err) {
-    console.warn("[Meta WA] template fallback to text:", err);
+    log.warn({ event: "meta_wa_reminder_template_fallback_to_text", err });
     await sendText(
       r.phone,
       `Reminder: your Songhwa booking is tomorrow — ${r.date} at ${r.time}, ${r.pax} pax. See you!`,

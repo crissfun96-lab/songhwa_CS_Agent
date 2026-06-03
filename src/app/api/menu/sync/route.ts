@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { syncAll } from "@/lib/menu/sheet-sync";
 import { buildCompactSummary } from "@/lib/menu/prompt-injector";
 import { resolveTenantId } from "@/lib/tenants/resolver";
+import { log } from "@/lib/logger";
 
 // Cron-triggered sync. Protected by CRON_SECRET header (Vercel Cron sets this).
 // Manual trigger: POST with { "secret": "..." } in body.
@@ -58,7 +59,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error("[menu/sync] failed:", message);
+    log.error({ event: "menu_sync_failed", err: error });
     return NextResponse.json(
       { success: false, error: message.slice(0, 500) },
       { status: 500 },

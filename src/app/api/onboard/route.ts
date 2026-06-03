@@ -4,6 +4,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod/v4";
 import { createTenant } from "@/lib/tenants/firestore";
+import { log } from "@/lib/logger";
 import { sendToStaffRaw } from "@/lib/telegram";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { emitAsync } from "@/lib/metering/firestore";
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
       "",
       "Next: provision their Twilio MY DID + Meta WA + paste creds into tenant config at /admin/tenants/" + tenant.id,
     ].join("\n");
-    sendToStaffRaw(lines).catch((err) => console.error("[onboard] alert failed:", err));
+    sendToStaffRaw(lines).catch((err) => log.error({ event: "onboard_alert_failed", err }));
 
     emitAsync("lead", { tenantId: "platform", metadata: { event: "tenant_created", tier: tenant.tier } });
 

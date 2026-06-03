@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getActivePromos } from "@/lib/menu/firestore";
 import { resolveTenantId } from "@/lib/tenants/resolver";
+import { log } from "@/lib/logger";
 
 export async function GET(request: Request) {
   try {
@@ -23,7 +24,7 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error("[menu/promos] failed:", message);
+    log.error({ event: "menu_promos_failed", err: error });
     return NextResponse.json(
       { success: false, error: message.slice(0, 200) },
       { status: 500 },

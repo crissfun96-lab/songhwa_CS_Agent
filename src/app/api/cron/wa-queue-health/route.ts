@@ -9,6 +9,7 @@
 
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/firebase-admin";
+import { log } from "@/lib/logger";
 import { verifyBearer } from "@/lib/auth-secret";
 import { tc } from "@/lib/tenants/collection";
 import { listActiveTenants } from "@/lib/tenants/firestore";
@@ -34,7 +35,7 @@ async function alertStaff(message: string): Promise<void> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ chat_id: chatId, text: message, parse_mode: "HTML" }),
-  }).catch((err) => console.error("[wa-queue-health] alert failed:", err));
+  }).catch((err) => log.error({ event: "wa_queue_health_alert_failed", err }));
 }
 
 export async function GET(request: Request) {
@@ -113,7 +114,7 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error("[wa-queue-health] error:", message);
+    log.error({ event: "wa_queue_health_error", err: error });
     return NextResponse.json(
       { success: false, error: message.slice(0, 200) },
       { status: 500 },
