@@ -65,7 +65,15 @@ One shared `ADMIN_USERNAME/PASSWORD` fronts admin routes wired to `songhwa_*`. T
 - [ ] **Tenant resolution fails OPEN into Songhwa** (~2–3 days) — `resolveTenantId` defaults to "songhwa" for bare vercel.app / localhost / unmatched host; WA webhook routes by host not `phone_number_id`. Make it fail-CLOSED on non-default hosts + route WA by `phone_number_id`. _Needs subdomain/host strategy (ties into P0-2 auth)._
 - [ ] **Firestore indexes only for `songhwa_*`** — a new tenant's composite queries throw FAILED_PRECONDITION (ops; latent until tenant #2).
 - [ ] **Welcome page overclaims** — "Payment confirmed / email on its way" with no payment taken + no mailer → soften copy (quick).
-- [ ] **No PDPA/privacy/terms pages** while recording customer voice + WhatsApp (legal gap) — draftable autonomously.
+- [x] **No PDPA/privacy/terms pages** — ✅ **DONE & deployed (Cycle 6)**. Added `/privacy`, `/pdpa` (bilingual EN+BM, PDPA 2010 s.7), `/terms` (diners + Foxie SaaS), shared `LegalLayout`, linked from all footers. Grounded in a code-cited data inventory; 3-lens adversarial review → FIX-FIRST → fixed 2 HIGH (localStorage claim, Baileys-vs-Meta) + 2 CRITICAL (consent basis, means-to-limit) → re-verified RESOLVED. Also fixed 2 pre-existing contact-link bugs (welcome wa.me missing a digit; home tap-to-call `tel:` had a space). _All pages carry a "needs Malaysian-lawyer review" banner._
+
+## 🔁 Cycle 6 follow-ups (need Chris / legal — surfaced while drafting policies)
+- [ ] **Operationalise the stated 24-month retention** — the policy now commits to deleting/anonymising guest data 24 months after last visit, but **no automated purge exists** (no Firestore TTL, no cron; `clearHistory()` is unwired). Add a retention purge job so the published policy is truthful.
+- [ ] **Build a DSAR / "delete my data" mechanism** — access & erasure are manual today; the policy promises a 21-day response. Add an endpoint/runbook.
+- [ ] **Affirmative consent + confirm lawful basis with a DPO** — pages now rest on booking-request necessity + legitimate interest (defensible) rather than blanket implied consent; have counsel confirm and consider an explicit consent step.
+- [ ] **Subscriber DPA template** — `/terms` promises a Data Processing Agreement "on request, countersigned before processing"; prepare the actual DPA.
+- [ ] **Confirm the entity + a privacy email** — pages use "Songhwa Korean Cuisine" + the +60 11-5430 2561 contact; add the registered company name/number + a dedicated privacy email if desired.
+- [ ] **Firebase index WIP still parked** — `.firebaserc` / `firebase.json` / `firestore.indexes.json` left uncommitted from an interrupted cycle; confirm project `crissfun-f9992` is Songhwa's, then finish the new-tenant index work.
 - [ ] **Phone "live handoff" never transfers** — says "connecting you" but Vapi `transferCall` isn't wired (needs `STAFF_TRANSFER_PHONE` + Vapi forwarding config).
 - [x] **Welcome page overclaims** — ✅ DONE (Cycle 5). Killed the false "a confirmation email is on its way" (no mailer exists) + the "Payment confirmed" assertion (monetization loop disconnected); copy is now honest in both wired/unwired states, tied to the real WhatsApp onboarding.
 
