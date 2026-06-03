@@ -43,13 +43,17 @@ Re-ran the 5 dimensions that failed in iteration 1 (hardened StructuredOutput ma
 - [x] **P1 — Silent on non-text messages** (`dispatcher.ts`). An image/audio/sticker got `replyText:undefined` → no reply at all. **Fix:** trilingual (EN/中文/BM) canned ack asking for text, placed AFTER the human-handoff + billing gates so we never talk over a human or a suspended tenant.
 - [x] **P1 — CANCEL flow had ZERO error handling** + **P2 — CREATE/UPDATE error codes incomplete** (`prompt-injector.ts`). Verified the exact codes each endpoint emits and aligned the prompt: CREATE now covers outside_hours/invalid_time/rate_limited/forbidden (was 4 codes); UPDATE covers not_found/cancelled/outside_hours/invalid_time/no_changes (was 2); CANCEL now covers not_found/already_cancelled/past_reservation (was 0).
 
+## Iteration 3 — truthfulness fixes (2026-06-04)
+
+### ✅ FIXED & deployed
+- [x] **P1 — Promos not channel-scoped** — `getActivePromos` never filtered by channel, so the agent could quote an Eatigo/Grab/foodpanda discount on a dine-in reservation. **Fix:** pure `promoAllowedOnChannel()` (TDD, 6 tests) — a reservation conversation only sees `dine_in` promos (+ its own direct channel); wired into `getActivePromos(channel)`, the `/api/menu/promos` route (defaults to `dine_in` so third-party promos can't leak even if a surface forgets), and all 3 surfaces (WhatsApp→whatsapp, Vapi→phone, web→phone).
+- [x] **P2 — `today_hours` always returned day index 0 (Sun/Mon)** — agent quoted the wrong day's hours 6 days/week. **Fix:** `todayHoursText()` + `klDayOfWeek()` (TDD, 5 tests) select the `hours` entry matching today's KL weekday (source-independent via explicit `dayOfWeek`); wired into `/api/business/status`.
+
 ### ⬜ Confirmed, still open (next iterations)
 - [ ] **P1 — Phone "transfer me to a manager NOW" is a dead transfer** (Vapi) — promises a live transfer that never bridges. Fix needs a Vapi `transferCall` tool in `docs/vapi/songhwa-assistant.json` + **Chris to re-import the assistant** (Vapi dashboard). _Needs-Chris._
-- [ ] **P1 — Promos not channel-scoped** — `get_active_promos` returns Eatigo/Grab/foodpanda promos on phone/web/WhatsApp; agent can quote a discount invalid on that channel. Fix: thread a `channel` arg through `getActivePromos` + each surface's promos call.
-- [ ] **P2 — `get_business_status.today_hours` always returns Monday** (`business/status`) — real bug, wrong hours quoted. TDD fix: index by today's KL weekday.
 - [ ] **P2 (×8) — prompt/parity polish:** voice number-formatting leaking into WhatsApp text; no fuzzy-time guidance ("7-ish"); WhatsApp returning-customer lookup suppressed by the "no filler" override; phone caller-ID discarded (forces reciting number); cross-channel success-message wording inconsistency; Vapi tool-schema hand-fork drift; WhatsApp assumes sender==booking number.
 - [ ] **P3 — Web voice has no proactive greeting** (stays silent until user speaks).
 - [ ] _(rejected by skeptic, not real: find-reservation guardrail "stripped" on phone; mid-booking-correction staleness — both refuted with code evidence.)_
 
 ## Test ledger
-- 115 tests (0→115 this session): +13 `reply-resolution`, +8 `conversation` (`sanitizeHistoryForModel`) on top of the prior 94.
+- 126 tests (0→126 this session): +13 `reply-resolution`, +8 `conversation`, +6 `promo-channel`, +5 `business/hours`, on top of the prior 94.

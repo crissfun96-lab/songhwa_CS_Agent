@@ -83,7 +83,7 @@ async function executeTool(
         return (await r.json())?.data ?? { error: "not_found" };
       }
       case "get_active_promos": {
-        const r = await fetch(`${APP_BASE_URL}/api/menu/promos`, { headers: baseHeaders });
+        const r = await fetch(`${APP_BASE_URL}/api/menu/promos?channel=phone`, { headers: baseHeaders });
         return (await r.json())?.data ?? [];
       }
       case "check_allergens": {

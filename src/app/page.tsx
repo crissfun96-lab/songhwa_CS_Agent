@@ -126,7 +126,8 @@ async function callTool(
       }
 
       case "get_active_promos": {
-        const res = await fetch(`/api/menu/promos`);
+        // Web voice is a direct dine-in booking channel → scope promos like the phone agent.
+        const res = await fetch(`/api/menu/promos?channel=phone`);
         const j = await res.json();
         return JSON.stringify(j.data ?? []);
       }

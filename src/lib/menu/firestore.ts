@@ -1,9 +1,11 @@
 import { getDb } from "../firebase-admin";
 import { DEFAULT_TENANT_ID } from "../tenants/types";
+import { promoAllowedOnChannel } from "./promo-channel";
 import type {
   MenuItem,
   MenuSet,
   Promo,
+  PromoChannel,
   Faq,
   VoiceExample,
   CompactMenuSummary,
@@ -174,6 +176,7 @@ export async function getAllActiveFaqs(
 export async function getActivePromos(
   now: Date = new Date(),
   tenantId: string = DEFAULT_TENANT_ID,
+  channel: PromoChannel | null = null,
 ): Promise<Promo[]> {
   const clock = getKlNow(now);
   const snapshot = await getDb()
@@ -183,6 +186,9 @@ export async function getActivePromos(
   const all = snapshot.docs.map((d) => d.data() as Promo);
 
   return all.filter((p) => {
+    // Channel scope first: a reservation conversation only sees dine-in-valid promos,
+    // never a third-party-platform-only discount (Eatigo / Grab / foodpanda).
+    if (!promoAllowedOnChannel(p, channel)) return false;
     if (p.startDate > clock.date) return false;
     if (p.endDate < clock.date) return false;
     if (p.daysOfWeek && p.daysOfWeek.length > 0) {

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import {
   getBusinessInfo,
   computeCurrentStatus,
-  hoursToText,
+  todayHoursText,
 } from "@/lib/business/firestore";
 import { resolveTenantId } from "@/lib/tenants/resolver";
 import { log } from "@/lib/logger";
@@ -60,7 +60,7 @@ export async function GET(request: Request) {
         is_open: status.isOpen,
         status_text: status.statusText,
         today: todayName,
-        today_hours: info.weekdayDescriptions[0] ?? hoursToText([info.hours[0]]),
+        today_hours: todayHoursText(info),
         full_week: info.weekdayDescriptions,
         rating: info.rating,
         review_count: info.reviewCount,

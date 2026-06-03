@@ -19,6 +19,29 @@ export async function getBusinessInfo(
   return doc.exists ? (doc.data() as BusinessInfo) : null;
 }
 
+// Day-of-week (0 = Sunday … 6 = Saturday) in Kuala Lumpur time.
+export function klDayOfWeek(now: Date = new Date()): number {
+  const wd = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kuala_Lumpur",
+    weekday: "short",
+  }).format(now);
+  const dayMap: Record<string, number> = {
+    Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+  };
+  return dayMap[wd] ?? 0;
+}
+
+// Today's opening hours as text — selected by the actual KL weekday, NOT a fixed index.
+// (The status route used to return weekdayDescriptions[0], i.e. always Sunday/Monday.)
+// Prefers the explicit dayOfWeek-keyed `hours` entry (source-independent); falls back to
+// the matching description, then a safe note.
+export function todayHoursText(info: BusinessInfo, now: Date = new Date()): string {
+  const dow = klDayOfWeek(now);
+  const today = info.hours?.find((h) => h.dayOfWeek === dow);
+  if (today) return hoursToText([today]);
+  return info.weekdayDescriptions?.[dow] ?? "Please check our latest opening hours.";
+}
+
 // ── Current-status helper (Malaysia time) ─────────────────────
 export interface CurrentStatus {
   isOpen: boolean;
