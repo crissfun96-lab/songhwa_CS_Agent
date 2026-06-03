@@ -11,7 +11,7 @@ import {
   resolveCapacityConfig,
 } from "@/lib/reservations/availability";
 import { resolveDate } from "@/lib/reservations/date-resolver";
-import { markDraftConverted } from "@/lib/reservations/intent";
+import { markDraftConverted, upsertDraft } from "@/lib/reservations/intent";
 import { normalizePhone } from "@/lib/reservations/lifecycle";
 import { enqueueNewReservation } from "@/lib/wa-queue";
 import { sendBookingConfirmation } from "@/lib/whatsapp/meta-client";
@@ -128,6 +128,33 @@ export async function POST(request: Request): Promise<NextResponse<CreateReserva
       );
     }
     const date = resolvedDate.date;
+
+    // ── SAFETY NET: persist a draft from the create args up-front ──
+    // The draft system is our "never lose a booking" net, but until now it only existed if
+    // the agent remembered to call save_reservation_draft (LLM-discretionary). Guarantee it
+    // here: every create attempt leaves a recoverable draft, so a later failure (duplicate /
+    // fully_booked / validation / server_error / dropped connection) still gives staff a lead.
+    // markDraftConverted (on success, below) flips it to converted. Best-effort — a draft
+    // write must never block or fail the booking itself.
+    if (parsed.sessionId) {
+      try {
+        await upsertDraft(
+          parsed.sessionId,
+          {
+            name: parsed.name,
+            phone: parsed.phone,
+            date,
+            time: parsed.time,
+            pax: parsed.pax,
+            menuChoice: parsed.menuChoice,
+            remarks: parsed.remarks,
+          },
+          tenantId,
+        );
+      } catch (err) {
+        log.warn({ event: "create_draft_upsert_failed", err, tenantId });
+      }
+    }
 
     // ── 1. Idempotency (pre-flight) ────────────────────────────
     // This catches user-level dupes serially. The HIGH-1 TOCTOU race is

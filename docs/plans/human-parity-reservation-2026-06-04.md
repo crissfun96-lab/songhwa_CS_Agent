@@ -59,7 +59,14 @@ Re-ran the 5 dimensions that failed in iteration 1 (hardened StructuredOutput ma
 
 ### ⬜ Confirmed, still open (next iterations)
 - [ ] **P1 — Phone "transfer me to a manager NOW" is a dead transfer** (Vapi) — promises a live transfer that never bridges. Fix needs a Vapi `transferCall` tool in `docs/vapi/songhwa-assistant.json` + **Chris to re-import the assistant** (Vapi dashboard). _Needs-Chris._
-- [ ] **P2 — Reliability tail (never-lose-a-booking):** server-side draft safety-net on every create attempt; per-inbound-message idempotency key (`metaMessageId`) for create + history append; reminder-cron retry/failure-marker. _(iteration 5 — TDD.)_
+## Iteration 5 — never-lose-a-booking (2026-06-04)
+
+### ✅ FIXED & deployed
+- [x] **P2 — Draft safety-net was LLM-discretionary** — only existed if the agent called `save_reservation_draft`; a single-turn create that then failed left zero recoverable lead. **Fix:** `/api/reservations` POST now does a best-effort `upsertDraft()` from the create args up-front (after date-resolution, before the idempotency/availability checks, guarded by `sessionId`), so EVERY create attempt leaves a draft; the existing `markDraftConverted` flips it on success. A failed/duplicate/dropped create now always leaves staff a lead. (Integration-wired + build-verified; Firestore I/O, not unit-testable here.)
+
+### ⬜ Reliability tail — still open
+- [ ] **P2 — Per-inbound-message idempotency key** (`metaMessageId`) for create + history append. _(iteration 6 — TDD the dedupe.)_
+- [ ] **P2 — Reminder-cron retry/failure-marker** — once-daily `where(date==tomorrow)` makes a missed reminder permanently unrecoverable. _(iteration 6.)_
 - [ ] **P2 — parity polish (remaining):** phone caller-ID discarded (forces reciting number); cross-channel success-message wording inconsistency; Vapi tool-schema hand-fork drift; WhatsApp assumes sender==booking number (confirm before lookup/modify).
 - [ ] **P3 — Web voice has no proactive greeting** (stays silent until user speaks).
 - [ ] _(rejected by skeptic, not real: find-reservation guardrail "stripped" on phone; mid-booking-correction staleness — both refuted with code evidence.)_
