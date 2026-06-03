@@ -113,5 +113,10 @@ The phone agent's `request_human_handoff` is a *function* tool that just returns
 3. Re-import / save the assistant in Vapi, then test a real call: "I want to speak to a manager now" → call should bridge.
    (Needs Chris's staff phone number + dashboard access; cannot be tested from code.)
 
+## Iteration 9 — phone caller-ID (2026-06-04)
+
+### ✅ FIXED & deployed
+- [x] **P2 — Phone agent discarded caller-ID, forcing the caller to recite their number** — Vapi provides `call.customer.number` but the route ignored it. **Fix:** `executeTool` now defaults every phone-needing tool (lookup_customer, find_reservation, save_reservation_draft, create_reservation, cancel_reservation, update_reservation ownership) to the caller-ID when the model omits `phone` — the model can still override. A human receptionist sees the caller's number; now so does ours. (Also tags phone-origin creates with `channel:"phone"` — which correctly still RECEIVES the WhatsApp confirmation, unlike WhatsApp-origin.)
+
 ## Test ledger
 - 126 tests (0→126 this session): +13 `reply-resolution`, +8 `conversation`, +6 `promo-channel`, +5 `business/hours`, on top of the prior 94.

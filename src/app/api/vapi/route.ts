@@ -57,16 +57,19 @@ async function executeTool(
   args: Record<string, unknown>,
   sessionId: string,
   tenantId: string,
+  callerPhone: string,
 ): Promise<unknown> {
   const enc = encodeURIComponent;
   const baseHeaders = internalHeaders(tenantId);
+  // Default any phone to the caller-ID Vapi provides, so the agent never makes a caller
+  // recite a number we already have. The model can still override by passing args.phone.
+  const phone = (typeof args.phone === "string" && args.phone.trim()) ? args.phone.trim() : callerPhone;
 
   try {
     switch (name) {
       case "lookup_customer": {
-        const phoneArg = String(args.phone ?? "");
         const nameArg = String(args.name ?? "");
-        const param = phoneArg ? `phone=${enc(phoneArg)}` : `name=${enc(nameArg)}`;
+        const param = phone ? `phone=${enc(phone)}` : `name=${enc(nameArg)}`;
         const r = await fetch(`${APP_BASE_URL}/api/customers?${param}`, { headers: baseHeaders });
         return (await r.json())?.data ?? { found: false };
       }
@@ -102,7 +105,7 @@ async function executeTool(
           body: JSON.stringify({
             sessionId,
             name: args.name,
-            phone: args.phone,
+            phone,
             date: args.date,
             time: args.time,
             pax: args.pax,
@@ -113,7 +116,6 @@ async function executeTool(
         return (await r.json())?.data ?? { saved: false };
       }
       case "find_reservation": {
-        const phone = String(args.phone ?? "");
         const date = args.date ? `&date=${enc(String(args.date))}` : "";
         const r = await fetch(`${APP_BASE_URL}/api/reservations/find?phone=${enc(phone)}${date}`, { headers: baseHeaders });
         const j = await r.json();
@@ -125,8 +127,9 @@ async function executeTool(
           headers: baseHeaders,
           body: JSON.stringify({
             sessionId,
+            channel: "phone",
             name: String(args.name ?? ""),
-            phone: String(args.phone ?? ""),
+            phone,
             date: String(args.date ?? ""),
             time: String(args.time ?? ""),
             pax: Number(args.pax ?? 0),
@@ -145,6 +148,8 @@ async function executeTool(
         for (const k of ["phone", "date", "time", "pax", "reason"] as const) {
           if (args[k] !== undefined) payload[k] = args[k];
         }
+        // Default ownership phone to caller-ID if the model didn't supply one.
+        if (payload.phone === undefined && phone) payload.phone = phone;
         if (args.menu_choice !== undefined) payload.menuChoice = args.menu_choice;
         if (args.remarks !== undefined) payload.remarks = args.remarks;
         const r = await fetch(`${APP_BASE_URL}/api/reservations/${enc(id)}`, {
@@ -161,7 +166,7 @@ async function executeTool(
           headers: baseHeaders,
           body: JSON.stringify({
             sessionId,
-            phone: args.phone,
+            phone,
             reason: args.reason,
           }),
         });
@@ -212,6 +217,9 @@ export async function POST(request: Request) {
   const payload = (await request.json()) as VapiPayload;
   const calls = payload.message?.toolCallList ?? payload.message?.toolCalls ?? [];
   const sessionId = `vapi_${payload.message?.call?.id ?? Date.now()}`;
+  // Caller-ID from the telephony layer — used as the default phone for tools so we never
+  // make the caller recite a number we already have.
+  const callerPhone = payload.message?.call?.customer?.number?.trim() ?? "";
 
   // Tenant resolution priority for Vapi:
   //   1. Assistant metadata.tenantId (configured per Vapi assistant)
@@ -234,7 +242,7 @@ export async function POST(request: Request) {
     } catch {
       args = {};
     }
-    const out = await executeTool(call.function.name, args, sessionId, tenantId);
+    const out = await executeTool(call.function.name, args, sessionId, tenantId, callerPhone);
     results.push({
       toolCallId: call.id,
       result: typeof out === "string" ? out : JSON.stringify(out),
