@@ -83,6 +83,9 @@ One shared `ADMIN_USERNAME/PASSWORD` fronts admin routes wired to `songhwa_*`. T
 ## 🔁 Cycle 7 follow-up (surfaced by the reschedule adversarial review)
 - [ ] **Same-document lost-update on reschedule** (MEDIUM, pre-existing) — `updated` is built from the read at the top of `updateReservation`, so a concurrent edit/cancel of the SAME reservation can still be clobbered (the txn only guards the *capacity* race, not this doc). Proper fix: re-read `current` + rebuild the diff INSIDE the transaction. Narrow (two concurrent edits to one booking); not worsened by Cycle 7.
 
+## 🔁 Cycle 10 follow-up (surfaced by the prod smoke test)
+- [ ] **`/api/reservations/[id]` returns 500 + leaks raw Firestore error on bad input** (LOW, pre-existing) — a malformed/empty body (`request.json()` throws "Unexpected end of JSON input") or a Firestore-reserved id (e.g. `__nope__` → `INVALID_ARGUMENT: …reserved`) escapes as a **500 with the raw Firestore message echoed to the client**, instead of a clean 400. Customer-reachable. Fix: validate the `id` shape + guard `request.json()` (return 400) and stop echoing internal error strings (the structured logger already captures the real error server-side now). Defense-in-depth, not introduced by Cycle 10. Note: the happy/not-found paths are correct (clean 404 verified live).
+
 ## ⚪ P2 — Nice-to-have
 - [ ] Phone ordering (takeaway/pickup) — net-new revenue function.
 - [ ] Native-audio model A/B for web voice (verify tool-calling first).
