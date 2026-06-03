@@ -13,7 +13,7 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/firebase-admin";
 import { tc } from "@/lib/tenants/collection";
 import { resolveTenantId } from "@/lib/tenants/resolver";
-import crypto from "node:crypto";
+import { verifyMetaSignature } from "@/lib/whatsapp/verify-signature";
 
 // ── GET: webhook verification (Meta hits this once when you save the URL) ──
 // SECURITY: generic 403 regardless of config state (no information leak)
@@ -63,29 +63,13 @@ interface MetaWebhookPayload {
   }>;
 }
 
-// Verify the X-Hub-Signature-256 header to confirm payload came from Meta.
-// SECURITY (Bug C4 fix): no dev-mode bypass. If the secret isn't configured,
-// the webhook MUST refuse — accepting unsigned payloads in any environment
-// would let an attacker stuff wa_inbound_messages (Firestore cost) and poison
-// downstream agent logic.
-function verifySignature(rawBody: string, signature: string | null): boolean {
-  const appSecret = process.env.META_WHATSAPP_APP_SECRET?.trim();
-  if (!appSecret) return false; // not configured → refuse all signed POSTs
-  if (!signature || !signature.startsWith("sha256=")) return false;
-  const expected = crypto.createHmac("sha256", appSecret).update(rawBody).digest("hex");
-  const provided = signature.slice("sha256=".length);
-  try {
-    return crypto.timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(provided, "hex"));
-  } catch {
-    return false;
-  }
-}
-
 export async function POST(request: Request) {
   const rawBody = await request.text();
   const signature = request.headers.get("x-hub-signature-256");
 
-  if (!verifySignature(rawBody, signature)) {
+  // Verify the X-Hub-Signature-256 header to confirm the payload came from Meta.
+  // (Logic + rationale live in @/lib/whatsapp/verify-signature — unit-tested there.)
+  if (!verifyMetaSignature(rawBody, signature)) {
     return NextResponse.json({ error: "invalid_signature" }, { status: 401 });
   }
 
