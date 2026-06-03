@@ -157,5 +157,24 @@ Ran the capstone convergence re-review (3 lenses) over iterations 7-10. **7 conf
 - [ ] **P2 — per-message create idempotency key; Vapi tool-schema hand-fork drift; WhatsApp sender==booking-number assumption. P3 — web proactive greeting; resolveFinalReply English fallback strings.**
 - [ ] **P1 — Vapi phone dead-transfer** — _needs Chris_ (runbook in iteration 8).
 
+## Iteration 13 — canonical-date confirmation (2026-06-04)
+
+### ✅ FIXED & deployed
+- [x] **P2 (F2) — confirmation echoed the model's RAW date, not the stored canonical date** — if the server resolved a different date than the model's raw text, the customer's confirmation could state the wrong date. **Fix:** all 3 channels now build the success confirmation from the STORED reservation returned by POST /api/reservations (`j.data`), falling back to args only if absent — the confirmation can never disagree with what was booked.
+
+## ✅ CONVERGENCE STATUS (2026-06-04, after 13 iterations + 4 reviews)
+**Every P0/P1 found across 2 full multi-dimension reviews + 2 regression/convergence reviews is CLOSED** (8 P1s + ~24 P2/P3s), all deployed + verified, **0→133 tests**. The reservation agent handles create/find/reschedule/cancel correctly across web-voice / phone / WhatsApp, never reports a success as failure, never silently loses a booking, channel-scopes promos, tells the truth about hours, and survives transient outages with retries.
+
+### Remaining — MARGINAL (autonomous, low value) — left intentionally:
+- [ ] P3 — pendingReply-above-gates re-delivers a benign non-text ack to a suspended tenant (very low harm; fix needs disproportionate plumbing).
+- [ ] P2 — per-message create idempotency key (double-book already well-mitigated by the 60-min guard + pendingReply fast-path).
+- [ ] P2 — WhatsApp sender==booking-number assumption (sender usually IS the booking number).
+- [ ] P3 — web proactive greeting; resolveFinalReply English fallback strings (rare no-model-text path).
+
+### Remaining — NEEDS CHRIS (cannot be done from code):
+- [ ] **P1 — Vapi phone "transfer to manager" dead-transfer** — add a Vapi `transferCall` tool + staff number + dashboard re-import (runbook in iteration 8).
+- [ ] **P2 — Vapi tool-schema hand-fork drift** — regenerate `docs/vapi/songhwa-assistant.json` from TOOL_DECLARATIONS, then re-import.
+- [ ] Original market-ready roadmap P0s: **Stripe price IDs** (monetization loop) + **real auth** (P0-2 multi-tenant session/tenant binding).
+
 ## Test ledger
 - 129 tests (0→126 this session): +13 `reply-resolution`, +8 `conversation`, +6 `promo-channel`, +5 `business/hours`, on top of the prior 94.

@@ -242,7 +242,9 @@ async function callTool(
         });
         const j = await res.json();
         if (j.success) {
-          return `Booking confirmed for ${payload.name}, ${payload.pax} pax on ${payload.date} at ${payload.time}. We look forward to seeing you!`;
+          // Confirm using the STORED reservation (canonical resolved date), not the raw args.
+          const stored = j.data ?? {};
+          return `Booking confirmed for ${stored.name ?? payload.name}, ${stored.pax ?? payload.pax} pax on ${stored.date ?? payload.date} at ${stored.time ?? payload.time}. We look forward to seeing you!`;
         }
         // Preserve error code + alternatives so agent can handle gracefully
         return JSON.stringify({ saved: false, ...j });

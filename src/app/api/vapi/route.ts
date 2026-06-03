@@ -138,9 +138,13 @@ async function executeTool(
           }),
         });
         const j = await r.json();
-        return j.success
-          ? { saved: true, message: `Booking confirmed for ${args.name}, ${args.pax} pax on ${args.date} at ${args.time}. We look forward to seeing you!` }
-          : { saved: false, ...j };
+        if (!j.success) return { saved: false, ...j };
+        // Confirm using the STORED reservation (canonical resolved date) when available.
+        const stored = (j.data ?? {}) as Record<string, unknown>;
+        return {
+          saved: true,
+          message: `Booking confirmed for ${stored.name ?? args.name}, ${stored.pax ?? args.pax} pax on ${stored.date ?? args.date} at ${stored.time ?? args.time}. We look forward to seeing you!`,
+        };
       }
       case "update_reservation": {
         const id = String(args.id ?? "");
