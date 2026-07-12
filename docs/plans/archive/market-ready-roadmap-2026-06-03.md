@@ -1,3 +1,5 @@
+> STATUS: superseded 2026-07-12 — open boxes untouched >30d (memory gc)
+
 # Songhwa CS Agent → Market-Ready Roadmap (2026-06-03)
 
 Source: 6-agent end-to-end audit (overall **38/100**). Verdict: a genuinely well-built

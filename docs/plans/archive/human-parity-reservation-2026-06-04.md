@@ -1,3 +1,5 @@
+> STATUS: superseded 2026-07-12 — open boxes untouched >30d (memory gc)
+
 # Human-Parity Reservation Loop — "replace a real human taking reservations"
 
 > Mission (Chris, 2026-06-04): **fix → review → fix → review until the reservation agent is market-ready and can replace a competent human host** taking bookings across web voice (Gemini Live), phone (Vapi), and WhatsApp (Gemini text).

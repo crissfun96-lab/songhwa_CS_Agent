@@ -1,3 +1,5 @@
+> STATUS: superseded 2026-07-12 — open boxes untouched >30d (memory gc)
+
 # Songhwa CS Agent — SaaS/PaaS Readiness Audit + Fix Plan
 
 **Date:** 2026-05-17

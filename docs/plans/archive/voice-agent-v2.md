@@ -1,3 +1,5 @@
+> STATUS: superseded 2026-07-12 — open boxes untouched >30d (memory gc)
+
 # Songhwa Voice Agent v2 — Plan B Implementation
 
 **Status:** Active · Started 2026-04-19

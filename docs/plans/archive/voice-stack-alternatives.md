@@ -1,3 +1,5 @@
+> STATUS: superseded 2026-07-12 — open boxes untouched >30d (memory gc)
+
 # Voice AI Stack Alternatives — Cheaper & Better-for-SEA Analysis
 
 **Date:** 2026-05-17
