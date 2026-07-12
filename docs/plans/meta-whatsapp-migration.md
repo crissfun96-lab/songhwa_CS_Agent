@@ -47,7 +47,7 @@ For production, create a **System User** with permanent access token (don't use 
 ### Step 4 — Configure webhook (5 min)
 1. WhatsApp → Configuration → Webhook → **Edit**
 2. Callback URL: `https://songhwa-cs-agent.vercel.app/api/whatsapp/webhook`
-3. Verify token: paste your `META_WHATSAPP_VERIFY_TOKEN`
+3. Webhook verify step — paste your `META_WHATSAPP_VERIFY_TOKEN` value
 4. Click **Verify and save** — Meta will GET your endpoint and expect `challenge` echoed back. The scaffolded code already handles this.
 5. Subscribe to fields: `messages` + `message_template_status_update`
 
@@ -55,7 +55,7 @@ For production, create a **System User** with permanent access token (don't use 
 ```
 META_WHATSAPP_PHONE_ID=123456789012345
 META_WHATSAPP_TOKEN=EAA... (long token)
-META_WHATSAPP_APP_SECRET=abc123def456
+META_WHATSAPP_APP_SECRET=<from Meta app dashboard>
 META_WHATSAPP_VERIFY_TOKEN=your_random_string
 ```
 Redeploy.
